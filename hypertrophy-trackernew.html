@@ -112,6 +112,10 @@ h2.section:first-child{margin-top:0;}
 .reco-up{background:rgba(255,122,61,.12);color:var(--accent);}
 .reco-reps{background:rgba(53,201,176,.12);color:var(--teal);}
 .reco-maintain{background:rgba(242,179,61,.13);color:var(--warn);}
+.reco-coach{margin-top:10px;background:linear-gradient(135deg,rgba(255,122,61,.13),rgba(53,201,176,.10));border:1px solid rgba(255,122,61,.28);color:var(--text);}
+.reco-coach .coach-title{font-size:11px;text-transform:uppercase;letter-spacing:.6px;color:var(--accent);font-weight:900;margin-bottom:4px;}
+.reco-coach .coach-main{font-size:14px;font-weight:800;line-height:1.35;}
+.reco-coach .coach-detail{font-size:12px;color:var(--text-dim);margin-top:4px;line-height:1.4;}
 .notesbox{margin:0 16px 14px;}
 .notesbox textarea{width:100%;background:var(--surface-2);border:1px solid var(--line);border-radius:9px;
   color:var(--text);padding:9px 10px;font-size:13px;min-height:36px;resize:vertical;font-family:inherit;}
@@ -420,21 +424,59 @@ function exerciseIndexPath(exId){
 
 /* recommendation engine — pure double progression on reps */
 function computeRecommendation(exDef, lastLog){
-  if(!lastLog || !lastLog.sets || !lastLog.sets.length) return null;
-  const completed = lastLog.sets.filter(s=>s.completed && s.weight>0 && s.reps>0);
-  if(!completed.length) return null;
-  const allAtTop = completed.length>=exDef.sets && completed.every(s=>s.reps>=exDef.repMax);
-  const topWeight = Math.max(...completed.map(s=>s.weight));
+  if(!lastLog || !lastLog.sets || !lastLog.sets.length){
+    return {
+      type:'first',
+      nextWeight:null,
+      targetReps:`${exDef.repMin}–${exDef.repMax}`,
+      text:`Choose a weight you can control for ${exDef.repMin}–${exDef.repMax} reps, stopping around the current programme target for effort.`,
+      detail:'No previous performance recorded yet — this session establishes your baseline.'
+    };
+  }
+
+  const completed = lastLog.sets.filter(s=>s.completed && Number(s.weight)>0 && Number(s.reps)>0);
+  if(!completed.length){
+    return {
+      type:'first', nextWeight:null, targetReps:`${exDef.repMin}–${exDef.repMax}`,
+      text:`Start with a weight that should produce ${exDef.repMin}–${exDef.repMax} clean reps.`,
+      detail:'No completed sets from the previous session.'
+    };
+  }
+
+  const weights = completed.map(s=>Number(s.weight));
+  const reps = completed.map(s=>Number(s.reps));
+  const workingWeight = Math.max(...weights);
+  const avgReps = reps.reduce((a,b)=>a+b,0)/reps.length;
+  const minReps = Math.min(...reps);
+  const maxReps = Math.max(...reps);
+  const allAtTop = completed.length >= exDef.sets && reps.every(r=>r>=exDef.repMax);
+  const tooHeavy = minReps < exDef.repMin;
+  const mostlyBelowMin = reps.filter(r=>r<exDef.repMin).length >= Math.ceil(reps.length/2);
 
   if(allAtTop){
-    const next = Math.round((topWeight+exDef.inc)*4)/4;
-    return {type:'up', text:`Increase to ${next}kg next time — you hit ${exDef.repMax} reps across all sets.`, nextWeight:next};
+    const next = Math.round((workingWeight + exDef.inc)*4)/4;
+    return {
+      type:'up', nextWeight:next, targetReps:`${exDef.repMin}–${exDef.repMax}`,
+      text:`Increase to ${next}kg today.`,
+      detail:`Last time: ${workingWeight}kg for ${reps.join(' / ')} reps — you reached the top of the range on every set. Start the new load near the bottom of the range.`
+    };
   }
-  const belowMin = completed.some(s=>s.reps<exDef.repMin);
-  if(belowMin){
-    return {type:'maintain', text:`Keep ${topWeight}kg — focus on getting every set into the ${exDef.repMin}–${exDef.repMax} rep range.`, nextWeight:topWeight};
+
+  if(mostlyBelowMin){
+    const next = Math.max(0, Math.round((workingWeight - exDef.inc)*4)/4);
+    return {
+      type:'down', nextWeight:next, targetReps:`${exDef.repMin}–${exDef.repMax}`,
+      text:`Reduce to ${next}kg today and rebuild the reps.`,
+      detail:`Last time: ${workingWeight}kg for ${reps.join(' / ')} reps — too many sets fell below ${exDef.repMin}. Quality reps come first.`
+    };
   }
-  return {type:'reps', text:`Keep ${topWeight}kg — aim for more reps (up to ${exDef.repMax}) across all sets next time.`, nextWeight:topWeight};
+
+  const targetNext = Math.min(exDef.repMax, Math.max(exDef.repMin, Math.ceil(avgReps + 1)));
+  return {
+    type:'reps', nextWeight:workingWeight, targetReps:`${targetNext}+`,
+    text:`Stay at ${workingWeight}kg today — aim for ${targetNext}+ reps.`,
+    detail:`Last time: ${workingWeight}kg for ${reps.join(' / ')} reps. Beat the total reps before adding weight.${tooHeavy ? ' One set was below the minimum, so keep the load conservative.' : ''}`
+  };
 }
 
 /* knee pain evaluation */
@@ -644,7 +686,7 @@ function renderActiveSession(){
       sess.exercises.push(log);
     }
     const lastLog = lastSessionFor(ex.id);
-    const rec = log.sets.every(s=>s.completed) ? computeRecommendation(ex, log) : null;
+    const rec = computeRecommendation(ex, lastLog && lastLog.log);
     return renderExerciseBlock(ex, log, lastLog, rec);
   }).join('');
 
@@ -716,8 +758,9 @@ function renderExerciseBlock(ex, log, lastLog, rec){
 
   let recoHtml = '';
   if(rec){
-    const cls = rec.type==='up'?'reco-up':(rec.type==='reps'?'reco-reps':'reco-maintain');
-    recoHtml = `<div class="reco ${cls}">${rec.text}</div>`;
+    const cls = rec.type==='up'?'reco-up':(rec.type==='reps'?'reco-reps':(rec.type==='down'?'reco-maintain':'reco-reps'));
+    const previous = lastLog && lastLog.log ? `Previous: ${lastLog.log.sets.filter(s=>s.completed && s.weight>0 && s.reps>0).map(s=>`${s.weight}kg × ${s.reps}`).join(' · ')}` : '';
+    recoHtml = `<div class="reco reco-coach ${cls}"><div class="coach-title">Today's advice</div><div class="coach-main">${escapeHtml(rec.text)}</div><div class="coach-detail">${escapeHtml(rec.detail||'')} ${escapeHtml(previous)}</div></div>`;
   }
 
   return `<div class="ex-card">
