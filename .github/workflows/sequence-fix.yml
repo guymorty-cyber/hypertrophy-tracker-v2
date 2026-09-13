@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
   pages: write
   id-token: write
 
@@ -27,7 +27,6 @@ jobs:
           p = Path('hypertrophy-trackernew.html')
           s = p.read_text(encoding='utf-8')
 
-          # Sequence-based progression instead of calendar-day selection.
           old = """function getTodayProgramDay(){
             // Monday=0 ... Sunday=6 mapping to program index
             const jsDay = new Date().getDay(); // 0=Sun..6=Sat
@@ -70,20 +69,7 @@ jobs:
 
           Path('index.html').write_text(s, encoding='utf-8')
           p.write_text(s, encoding='utf-8')
-          print('Prepared index.html and hypertrophy-trackernew.html')
-
-      - name: Persist prepared app source
-        shell: bash
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add index.html hypertrophy-trackernew.html
-          if git diff --cached --quiet; then
-            echo "No source changes to persist"
-          else
-            git commit -m "Persist deployed app source"
-            git push origin HEAD:main
-          fi
+          print('Prepared patched index.html and hypertrophy-trackernew.html')
 
       - name: Setup Pages
         uses: actions/configure-pages@v5
