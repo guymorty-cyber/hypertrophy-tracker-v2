@@ -29,6 +29,9 @@ jobs:
       - name: Apply Phase 2 hypertrophy coaching engine
         run: python scripts/phase2_coaching.py
 
+      - name: Apply delete workout feature
+        run: python scripts/delete_workout.py
+
       - name: Setup Pages
         uses: actions/configure-pages@v5
 
