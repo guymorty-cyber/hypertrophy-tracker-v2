@@ -68,12 +68,8 @@ jobs:
           s = s.replace('<div class="eyebrow">DAY ${todayIdx+1} · REST</div>', '<div class="eyebrow">${todayIdx+1}. REST DAY</div>')
           s = s.replace('<button class="btn btn-secondary" data-action="gotoTrain">Log a workout anyway</button>', '<button class="btn btn-secondary" data-action="startRestDay">Log Rest Day</button>')
           s = s.replace('<div class="eyebrow">NEXT WORKOUT · DAY ${todayIdx+1}</div>', '<div class="eyebrow">NEXT WORKOUT · ${todayIdx+1}</div>')
-
           s = s.replace('<label>Choose day</label>', '<label>Choose workout</label>')
-          s = s.replace(
-              '<option value="${i}" ${i===todayIdx?\'selected\':\'\'}>Day ${i+1} — ${escapeHtml(d.name)}${d.type===\'rest\'?\' (Rest)\':\'\'}</option>',
-              '<option value="${i}" ${i===todayIdx?\'selected\':\'\'}>${i+1}. ${escapeHtml(d.name)}${d.type===\'rest\'?\' (Rest)\':\'\'}</option>'
-          )
+          s = s.replace('<option value="${i}" ${i===todayIdx?\'selected\':\'\'}>Day ${i+1} — ${escapeHtml(d.name)}${d.type===\'rest\'?\' (Rest)\':\'\'}</option>', '<option value="${i}" ${i===todayIdx?\'selected\':\'\'}>${i+1}. ${escapeHtml(d.name)}${d.type===\'rest\'?\' (Rest)\':\'\'}</option>')
           s = s.replace("<h2 class=\"section\">This week's split</h2>", '<h2 class="section">Workout sequence</h2>')
           s = s.replace('<div style="font-size:13.5px;">Day ${i+1} — ${escapeHtml(d.name)}</div>', '<div style="font-size:13.5px;">${i+1}. ${escapeHtml(d.name)}</div>')
           s = s.replace('<button class="btn btn-primary" data-action="startPicked">Start Workout</button>\n    </div>', '<button class="btn btn-primary" data-action="startPicked">Start Workout</button>\n      <button class="btn btn-secondary" data-action="startRestDay">Log Rest Day</button>\n    </div>')
@@ -81,22 +77,14 @@ jobs:
           s = s.replace("<h2>${sDayIdx>-1?'Day '+(sDayIdx+1)+' — ':''}${escapeHtml(s.dayName)}</h2>", "<h2>${sDayIdx>-1?(sDayIdx+1)+'. ':''}${escapeHtml(s.dayName)}</h2>")
 
           if "else if(action==='startRestDay')" not in s:
-              s = s.replace(
-                  "}else if(action==='gotoTrain'){\n      el.onclick = ()=> setTab('train');",
-                  "}else if(action==='gotoTrain'){\n      el.onclick = ()=> setTab('train');\n    }else if(action==='startRestDay'){\n      el.onclick = ()=> startRestDay();"
-              )
-
+              s = s.replace("}else if(action==='gotoTrain'){\n      el.onclick = ()=> setTab('train');", "}else if(action==='gotoTrain'){\n      el.onclick = ()=> setTab('train');\n    }else if(action==='startRestDay'){\n      el.onclick = ()=> startRestDay();")
           if 'function startRestDay()' not in s:
-              s = s.replace(
-                  'function getActiveExLog(exId){',
-                  '''function startRestDay(){
+              s = s.replace('function getActiveExLog(exId){', '''function startRestDay(){
             const restIdx = DATA.program.findIndex(d=>d.type==='rest');
             if(restIdx<0) return;
             startSession(restIdx);
           }
-          function getActiveExLog(exId){'''
-              )
-
+          function getActiveExLog(exId){''')
           if 'const restIntro = day.type===\'rest\'' not in s:
               old = '''  const activeDayIdx = DATA.program.findIndex(d=>d.id===day.id);
   return `
@@ -110,9 +98,7 @@ jobs:
     <div class="card card-tight" style="display:flex;justify-content:space-between;align-items:center;">'''
               if old in s:
                   s = s.replace(old,new,1)
-                  anchor = '    </div>\n    ${kneeBefore}'
-                  if anchor in s:
-                      s = s.replace(anchor, '    </div>\n    ${restIntro}\n    ${kneeBefore}', 1)
+                  s = s.replace('    </div>\n    ${kneeBefore}', '    </div>\n    ${restIntro}\n    ${kneeBefore}', 1)
 
           p.write_text(s)
           PY
