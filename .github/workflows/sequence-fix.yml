@@ -1,0 +1,61 @@
+name: Sequence fix
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v6
+      - name: Patch app
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('hypertrophy-trackernew.html')
+          s=p.read_text()
+          old='''function getTodayProgramDay(){
+  // Monday=0 ... Sunday=6 mapping to program index
+  const jsDay = new Date().getDay(); // 0=Sun..6=Sat
+  const idx = jsDay===0 ? 6 : jsDay-1; // Mon->0 ... Sun->6
+  return idx;
+}'''
+          new='''function getNextProgramIndex(){
+  if(!DATA.sessions.length) return DATA.program.findIndex(d=>d.type==='training');
+  const sessions=DATA.sessions.slice().sort((a,b)=>a.date===b.date?String(a.id).localeCompare(String(b.id)):(a.date<b.date?-1:1));
+  const lastIdx=DATA.program.findIndex(d=>d.id===sessions[sessions.length-1].dayId);
+  return lastIdx<0?0:(lastIdx+1)%DATA.program.length;
+}
+function getTodayProgramDay(){ return getNextProgramIndex(); }'''
+          if old in s: s=s.replace(old,new,1)
+          s=s.replace('const todayIdx = getTodayProgramDay();','const todayIdx = getNextProgramIndex();')
+          s=s.replace('DAY ${todayIdx+1} · REST','${todayIdx+1}. REST DAY')
+          s=s.replace('NEXT WORKOUT · DAY ${todayIdx+1}','NEXT WORKOUT · ${todayIdx+1}')
+          s=s.replace('Day ${activeDayIdx+1} — ${escapeHtml(day.name)}','${activeDayIdx+1}. ${escapeHtml(day.name)}')
+          s=s.replace('Day ${i+1} — ${escapeHtml(d.name)}','${i+1}. ${escapeHtml(d.name)}')
+          s=s.replace('This week\'s split','Workout sequence')
+          s=s.replace('Choose day','Choose workout')
+          s=s.replace('Log a workout anyway','Log Rest Day')
+          p.write_text(s)
+          if 'function getNextProgramIndex()' not in s: raise SystemExit('sequence patch failed')
+          PY
+      - name: Commit
+        run: |
+          git config user.name github-actions
+          git config user.email actions@github.com
+          git add hypertrophy-trackernew.html
+          git diff --cached --quiet || git commit -m 'Fix workout sequence labels'
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v4
+        with:
+          path: .
+      - name: Deploy
+        id: deployment
+        uses: actions/deploy-pages@v4
