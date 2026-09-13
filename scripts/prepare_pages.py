@@ -37,6 +37,7 @@ s = s.replace("This week's split", 'Workout sequence')
 s = s.replace('<label>Choose day</label>', '<label>Choose workout</label>')
 s = s.replace('Log a workout anyway', 'Log Rest Day')
 
+# Ensure the existing rest-day action calls the dedicated rest-day entry point.
 if 'data-action="startRestDay"' not in s:
     s = s.replace('data-action="gotoTrain">Log Rest Day', 'data-action="startRestDay">Log Rest Day')
 if "action==='startRestDay'" not in s:
@@ -91,12 +92,8 @@ if n != 1:
 s = s.replace("<div class=\"coach-title\">Today's advice</div>", "<div class=\"coach-title\">AI HYPERTROPHY COACH</div>", 1)
 s = s.replace("<div class=\"coach-detail\">${escapeHtml(rec.detail||'')} ${escapeHtml(previous)}</div>", "<div class=\"coach-detail\">${escapeHtml(rec.detail||'')} · ${rec.sets||ex.sets} sets · Target ${escapeHtml(rec.targetReps||`${ex.repMin}–${ex.repMax}`)} reps ${escapeHtml(previous)}</div>", 1)
 
-# Rest days get their own recovery screen rather than a fake workout with set/rep rows.
-rest_patch = r'''
-// Dedicated rest-day UI. The underlying session completion remains the same, so
-// rest days still advance the sequence and appear in history without exercise data.
-s += r'''
-<style>
+# Add a small runtime guard that replaces the rest-day workout renderer with a true recovery screen.
+rest_patch = r'''<style>
 .rest-day-card{background:linear-gradient(155deg,#202a2a,#1a2023);border:1px solid var(--line);border-radius:16px;padding:28px 20px;text-align:center;margin:8px 0 14px;}
 .rest-day-icon{font-size:54px;line-height:1;margin-bottom:14px;}
 .rest-day-card h2{font-size:28px;margin:0 0 8px;letter-spacing:-.5px;}
@@ -104,50 +101,50 @@ s += r'''
 .rest-day-meta{display:flex;gap:8px;justify-content:center;flex-wrap:wrap;margin-bottom:20px;}
 .rest-day-meta span{background:var(--surface-3);color:var(--text-dim);padding:7px 10px;border-radius:99px;font-size:12px;font-weight:700;}
 </style>
-'''
-
-rest_patch += r'''
-const _originalStartRestDay = typeof startRestDay === 'function' ? startRestDay : null;
-function startRestDay(){
-  const restIdx = DATA.program.findIndex(d=>d.type==='rest');
-  if(restIdx<0) return;
-  // Let the existing session machinery initialise the session/sequence state.
-  startSession(restIdx);
-  setTimeout(()=>{
+<script>
+(function(){
+  const originalStartSession = window.startSession;
+  if(typeof originalStartSession !== 'function') return;
+  window.startSession = function(dayIdx){
+    const day = DATA.program[dayIdx];
+    if(!day || day.type !== 'rest') return originalStartSession(dayIdx);
     const content = document.getElementById('content');
-    if(!content) return;
+    if(!content) return originalStartSession(dayIdx);
+    window.activeDayIdx = dayIdx;
     content.innerHTML = `
       <div class="rest-day-card">
         <div class="rest-day-icon">😴</div>
-        <h2>Rest Day</h2>
+        <h2>REST DAY</h2>
         <p>No sets. No reps. No workout. Recover, eat well, sleep and come back stronger.</p>
-        <div class="rest-day-meta">
-          <span>Recovery</span><span>Muscle growth</span><span>Next session: Lower B</span>
-        </div>
+        <div class="rest-day-meta"><span>Recovery</span><span>Muscle growth</span><span>Next: Lower B</span></div>
         <button class="btn btn-primary" id="completeRestDayBtn">Log Rest Day</button>
       </div>
       <div class="card card-tight">
         <div class="row"><strong>Optional recovery</strong><span class="pill pill-teal">Easy</span></div>
-        <div style="color:var(--text-dim);font-size:13px;line-height:1.5;margin-top:8px;">Light walking, mobility or easy cardio is fine if you want it. Nothing needs to be logged as a set.</div>
+        <div style="color:var(--text-dim);font-size:13px;line-height:1.5;margin-top:8px;">Light walking, mobility or easy cardio is fine. Nothing needs to be logged as a set.</div>
       </div>`;
-    document.getElementById('completeRestDayBtn')?.addEventListener('click',()=>{
-      // Re-render the underlying rest session and use its existing completion path.
-      startSession(restIdx);
-      setTimeout(()=>{
-        const primary = Array.from(document.querySelectorAll('button.btn-primary'))
-          .find(b=>/finish|complete|log rest|save/i.test((b.textContent||'').trim()));
-        if(primary) primary.click();
-      },50);
-    });
-  },50);
-}
-'''
+    document.getElementById('completeRestDayBtn').onclick = function(){
+      // Record the rest day through the app's existing completion function if present.
+      if(typeof window.finishSession === 'function') window.finishSession();
+      else if(typeof window.completeSession === 'function') window.completeSession();
+      else if(typeof window.saveSession === 'function') window.saveSession();
+      else {
+        // Fallback: create a minimal rest session and advance the sequence.
+        const now = Date.now();
+        DATA.sessions.push({id:'rest-'+now,dayId:day.id,date:new Date(now).toISOString().slice(0,10),startedAt:now,finishedAt:now,sets:[],notes:'Rest day'});
+        if(typeof saveData === 'function') saveData();
+        if(typeof renderDashboard === 'function') renderDashboard();
+      }
+    };
+  };
+})();
+</script>'''
 
-# Insert the rest-day override just before the final page writes.
+# The runtime patch must be present in the generated page before it is written.
 marker = "Path('index.html').write_text(s, encoding='utf-8')"
 if marker not in s:
     raise RuntimeError('Could not find final page write')
-s = s.replace(marker, rest_patch + "\n" + marker, 1)
+s = s.replace(marker, "s = s.replace('</body>', " + repr(rest_patch + '</body>') + ", 1)\n\n" + marker, 1)
 
 Path('index.html').write_text(s, encoding='utf-8')
 p.write_text(s, encoding='utf-8')
