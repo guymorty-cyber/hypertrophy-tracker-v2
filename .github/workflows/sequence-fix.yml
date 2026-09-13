@@ -20,9 +20,6 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v6
 
-      - name: Prepare app for Pages
-        run: python scripts/prepare_pages.py
-
       - name: Apply final rest-day UI fix
         run: python scripts/fix_rest.py
 
