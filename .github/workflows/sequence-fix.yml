@@ -42,6 +42,9 @@ jobs:
             python scripts/delete_workout.py
           fi
 
+      - name: Fix History delete UI
+        run: python scripts/fix_history_delete.py
+
       - name: Setup Pages
         uses: actions/configure-pages@v5
 
