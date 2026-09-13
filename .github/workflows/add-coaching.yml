@@ -1,0 +1,113 @@
+name: Add workout coaching
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  patch-app:
+    if: "!contains(github.event.head_commit.message, 'Apply intelligent workout coaching')"
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Patch workout coaching
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p = Path('hypertrophy-trackernew.html')
+          s = p.read_text()
+
+          old_css = '''.reco-maintain{background:rgba(242,179,61,.13);color:var(--warn);}\n'''
+          new_css = old_css + '''.reco-coach{margin-top:10px;background:linear-gradient(135deg,rgba(255,122,61,.13),rgba(53,201,176,.10));border:1px solid rgba(255,122,61,.28);color:var(--text);}\n.reco-coach .coach-title{font-size:11px;text-transform:uppercase;letter-spacing:.6px;color:var(--accent);font-weight:900;margin-bottom:4px;}\n.reco-coach .coach-main{font-size:14px;font-weight:800;line-height:1.35;}\n.reco-coach .coach-detail{font-size:12px;color:var(--text-dim);margin-top:4px;line-height:1.4;}\n'''
+          if '.reco-coach{' not in s:
+              if old_css not in s:
+                  raise SystemExit('CSS anchor not found')
+              s = s.replace(old_css, new_css, 1)
+
+          start = s.index('function computeRecommendation(exDef, lastLog){')
+          end = s.index('\n}\n\n/* knee pain evaluation */', start) + 2
+          new_fn = r'''function computeRecommendation(exDef, lastLog){
+            if(!lastLog || !lastLog.sets || !lastLog.sets.length){
+              return {
+                type:'first',
+                nextWeight:null,
+                targetReps:`${exDef.repMin}–${exDef.repMax}`,
+                text:`Choose a weight you can control for ${exDef.repMin}–${exDef.repMax} reps, stopping around the current programme target for effort.`,
+                detail:'No previous performance recorded yet — this session establishes your baseline.'
+              };
+            }
+
+            const completed = lastLog.sets.filter(s=>s.completed && Number(s.weight)>0 && Number(s.reps)>0);
+            if(!completed.length){
+              return {
+                type:'first', nextWeight:null, targetReps:`${exDef.repMin}–${exDef.repMax}`,
+                text:`Start with a weight that should produce ${exDef.repMin}–${exDef.repMax} clean reps.`,
+                detail:'No completed sets from the previous session.'
+              };
+            }
+
+            const weights = completed.map(s=>Number(s.weight));
+            const reps = completed.map(s=>Number(s.reps));
+            const workingWeight = Math.max(...weights);
+            const avgReps = reps.reduce((a,b)=>a+b,0)/reps.length;
+            const minReps = Math.min(...reps);
+            const maxReps = Math.max(...reps);
+            const allAtTop = completed.length >= exDef.sets && reps.every(r=>r>=exDef.repMax);
+            const tooHeavy = minReps < exDef.repMin;
+            const mostlyBelowMin = reps.filter(r=>r<exDef.repMin).length >= Math.ceil(reps.length/2);
+
+            if(allAtTop){
+              const next = Math.round((workingWeight + exDef.inc)*4)/4;
+              return {
+                type:'up', nextWeight:next, targetReps:`${exDef.repMin}–${exDef.repMax}`,
+                text:`Increase to ${next}kg today.`,
+                detail:`Last time: ${workingWeight}kg for ${reps.join(' / ')} reps — you reached the top of the range on every set. Start the new load near the bottom of the range.`
+              };
+            }
+
+            if(mostlyBelowMin){
+              const next = Math.max(0, Math.round((workingWeight - exDef.inc)*4)/4);
+              return {
+                type:'down', nextWeight:next, targetReps:`${exDef.repMin}–${exDef.repMax}`,
+                text:`Reduce to ${next}kg today and rebuild the reps.`,
+                detail:`Last time: ${workingWeight}kg for ${reps.join(' / ')} reps — too many sets fell below ${exDef.repMin}. Quality reps come first.`
+              };
+            }
+
+            const targetNext = Math.min(exDef.repMax, Math.max(exDef.repMin, Math.ceil(avgReps + 1)));
+            return {
+              type:'reps', nextWeight:workingWeight, targetReps:`${targetNext}+`,
+              text:`Stay at ${workingWeight}kg today — aim for ${targetNext}+ reps.`,
+              detail:`Last time: ${workingWeight}kg for ${reps.join(' / ')} reps. Beat the total reps before adding weight.${tooHeavy ? ' One set was below the minimum, so keep the load conservative.' : ''}`
+            };
+          }'''
+          s = s[:start] + new_fn + s[end:]
+
+          old_rec = "const rec = log.sets.every(s=>s.completed) ? computeRecommendation(ex, log) : null;"
+          new_rec = "const rec = computeRecommendation(ex, lastLog && lastLog.log);"
+          if old_rec not in s:
+              raise SystemExit('recommendation call anchor not found')
+          s = s.replace(old_rec, new_rec, 1)
+
+          old_html = '''  let recoHtml = '';\n  if(rec){\n    const cls = rec.type==='up'?'reco-up':(rec.type==='reps'?'reco-reps':'reco-maintain');\n    recoHtml = `<div class="reco ${cls}">${rec.text}</div>`;\n  }'''
+          new_html = '''  let recoHtml = '';\n  if(rec){\n    const cls = rec.type==='up'?'reco-up':(rec.type==='reps'?'reco-reps':(rec.type==='down'?'reco-maintain':'reco-reps'));\n    const previous = lastLog && lastLog.log ? `Previous: ${lastLog.log.sets.filter(s=>s.completed && s.weight>0 && s.reps>0).map(s=>`${s.weight}kg × ${s.reps}`).join(' · ')}` : '';\n    recoHtml = `<div class="reco reco-coach ${cls}"><div class="coach-title">Today's advice</div><div class="coach-main">${escapeHtml(rec.text)}</div><div class="coach-detail">${escapeHtml(rec.detail||'')} ${escapeHtml(previous)}</div></div>`;\n  }'''
+          if old_html not in s:
+              raise SystemExit('recommendation HTML anchor not found')
+          s = s.replace(old_html, new_html, 1)
+
+          p.write_text(s)
+          PY
+
+      - name: Commit coaching changes
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add hypertrophy-trackernew.html
+          git diff --cached --quiet && exit 0
+          git commit -m "Apply intelligent workout coaching"
+          git push
