@@ -27,10 +27,20 @@ jobs:
         run: python scripts/phase1_coaching.py
 
       - name: Apply Phase 2 hypertrophy coaching engine
-        run: python scripts/phase2_coaching.py
+        run: |
+          if grep -q "recommendation engine — Phase 2 hypertrophy-specific progression" index.html; then
+            echo "Phase 2 coaching already applied"
+          else
+            python scripts/phase2_coaching.py
+          fi
 
       - name: Apply delete workout feature
-        run: python scripts/delete_workout.py
+        run: |
+          if grep -q "DELETE WORKOUT FEATURE" index.html; then
+            echo "Delete workout feature already applied"
+          else
+            python scripts/delete_workout.py
+          fi
 
       - name: Setup Pages
         uses: actions/configure-pages@v5
