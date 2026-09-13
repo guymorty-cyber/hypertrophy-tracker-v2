@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
   pages: write
   id-token: write
 
@@ -24,7 +24,6 @@ jobs:
         shell: python
         run: |
           from pathlib import Path
-          import re
           p = Path('hypertrophy-trackernew.html')
           s = p.read_text(encoding='utf-8')
 
@@ -62,18 +61,29 @@ jobs:
           s = s.replace('<label>Choose day</label>', '<label>Choose workout</label>')
           s = s.replace('Log a workout anyway', 'Log Rest Day')
 
-          # Add a dedicated rest-day action if the existing app does not have it.
-          if "data-action=\"startRestDay\"" not in s:
+          if 'data-action="startRestDay"' not in s:
               s = s.replace('data-action="gotoTrain">Log Rest Day', 'data-action="startRestDay">Log Rest Day')
           if "action==='startRestDay'" not in s:
               s = s.replace("}else if(action==='gotoTrain'){", "}else if(action==='startRestDay'){\n      el.onclick = ()=> startRestDay();\n    }else if(action==='gotoTrain'){")
           if 'function startRestDay()' not in s:
               s = s.replace('function startSession(dayIdx){', "function startRestDay(){\n  const restIdx = DATA.program.findIndex(d=>d.type==='rest');\n  if(restIdx>=0) startSession(restIdx);\n}\n\nfunction startSession(dayIdx){", 1)
 
-          # GitHub Pages needs an entry file at the artifact root.
           Path('index.html').write_text(s, encoding='utf-8')
           p.write_text(s, encoding='utf-8')
           print('Prepared index.html and hypertrophy-trackernew.html')
+
+      - name: Persist prepared app source
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add index.html hypertrophy-trackernew.html
+          if git diff --cached --quiet; then
+            echo "No source changes to persist"
+          else
+            git commit -m "Persist deployed app source"
+            git push origin HEAD:main
+          fi
 
       - name: Setup Pages
         uses: actions/configure-pages@v5
