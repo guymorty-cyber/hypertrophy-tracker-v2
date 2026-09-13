@@ -24,6 +24,7 @@ jobs:
         shell: python
         run: |
           from pathlib import Path
+          import re
           p = Path('hypertrophy-trackernew.html')
           s = p.read_text(encoding='utf-8')
 
@@ -67,9 +68,79 @@ jobs:
           if 'function startRestDay()' not in s:
               s = s.replace('function startSession(dayIdx){', "function startRestDay(){\n  const restIdx = DATA.program.findIndex(d=>d.type==='rest');\n  if(restIdx>=0) startSession(restIdx);\n}\n\nfunction startSession(dayIdx){", 1)
 
+          # Upgrade the existing recommendation engine into an adaptive hypertrophy coach.
+          coach_fn = r'''function computeRecommendation(exDef, lastLog){
+  const phase = (typeof currentPhase !== 'undefined' && currentPhase) ? currentPhase : null;
+  const phaseName = phase && phase.name ? phase.name : 'Hypertrophy';
+  const setsPlanned = Math.max(1, Number(exDef.sets||1));
+  const isIsolation = exDef.cat === 'isolation';
+  const rir = phaseName === 'Deload' ? 3 : (isIsolation ? (phaseName === 'Peak' ? 0 : 1) : (phaseName === 'Calibration' ? 2 : 1));
+
+  if(!lastLog || !lastLog.sets || !lastLog.sets.length){
+    return {
+      type:'first', nextWeight:null, targetReps:`${exDef.repMin}–${exDef.repMax}`,
+      sets: phaseName==='Deload' ? Math.max(1,Math.ceil(setsPlanned*.5)) : setsPlanned,
+      text:`Start with a weight you can do for ${exDef.repMin}–${exDef.repMax} reps with about ${rir} RIR.`,
+      detail:`AI Coach target: ${phaseName} · ${rir} RIR · ${setsPlanned} planned sets. Add reps before load.`
+    };
+  }
+
+  const completed = lastLog.sets.filter(s=>s.completed && Number(s.weight)>0 && Number(s.reps)>0);
+  if(!completed.length){
+    return {type:'first',nextWeight:null,targetReps:`${exDef.repMin}–${exDef.repMax}`,sets:setsPlanned,
+      text:`Use a conservative starting weight and aim for ${exDef.repMin}–${exDef.repMax} reps with about ${rir} RIR.`,
+      detail:`No usable previous set was recorded. ${phaseName} phase.`};
+  }
+
+  const avgReps = completed.reduce((a,s)=>a+Number(s.reps),0)/completed.length;
+  const lastWeight = Number(completed[completed.length-1].weight);
+  const avgWeight = completed.reduce((a,s)=>a+Number(s.weight),0)/completed.length;
+  const increment = Math.max(Number(exDef.inc||0), 0.5);
+  let nextWeight = avgWeight;
+  let type = 'reps';
+  let text;
+
+  if(avgReps >= exDef.repMax){
+    nextWeight = avgWeight + increment;
+    type = 'up';
+    text = `Increase to about ${nextWeight} kg and aim for ${exDef.repMin}–${exDef.repMax} reps.`;
+  }else if(avgReps < exDef.repMin){
+    nextWeight = Math.max(increment, avgWeight - increment);
+    type = 'down';
+    text = `Drop to about ${nextWeight} kg and rebuild into the ${exDef.repMin}–${exDef.repMax} range.`;
+  }else{
+    text = `Keep about ${avgWeight} kg and beat last time by 1–2 total reps before adding load.`;
+  }
+
+  const targetSets = phaseName==='Deload' ? Math.max(1,Math.ceil(setsPlanned*.5)) : setsPlanned;
+  const setText = targetSets===1 ? '1 set' : `${targetSets} sets`;
+  const rirText = rir===0 ? '0 RIR on the final isolation set' : `${rir} RIR`;
+  return {
+    type, nextWeight, targetReps:`${exDef.repMin}–${exDef.repMax}`, sets:targetSets,
+    text,
+    detail:`AI Coach: ${setText} · ${exDef.repMin}–${exDef.repMax} reps · ${rirText}. Previous average: ${avgWeight.toFixed(1)} kg × ${avgReps.toFixed(1)} reps.`
+  };
+}
+
+'''
+          pattern = r'function computeRecommendation\(exDef, lastLog\)\{.*?\n\}\n\nfunction renderExerciseBlock'
+          replacement = coach_fn + 'function renderExerciseBlock'
+          s, n = re.subn(pattern, replacement, s, count=1, flags=re.S)
+          if n != 1:
+              raise RuntimeError('Could not locate recommendation engine')
+
+          # Make the advice card explicitly show sets, target reps and suggested load when available.
+          old_reco = "recoHtml = `<div class=\\"reco reco-coach ${cls}\\"><div class=\\"coach-title\\">Today's advice</div><div class=\\"coach-main\\">${escapeHtml(rec.text)}</div><div class=\\"coach-detail\\">${escapeHtml(rec.detail||'')} ${escapeHtml(previous)}</div></div>`;"
+          new_reco = "recoHtml = `<div class=\\"reco reco-coach ${cls}\\"><div class=\\"coach-title\\">AI HYPERTROPHY COACH</div><div class=\\"coach-main\\">${escapeHtml(rec.text)}</div><div class=\\"coach-detail\\">${escapeHtml(rec.detail||'')} ${rec.sets?` · ${rec.sets} sets`:''} ${rec.targetReps?` · Target ${rec.targetReps} reps`:''} ${escapeHtml(previous)}</div></div>`;"
+          if old_reco in s:
+              s = s.replace(old_reco, new_reco, 1)
+          else:
+              # Fallback for the literal HTML if escaping differs.
+              s = s.replace("<div class=\"coach-title\">Today's advice</div>", "<div class=\"coach-title\">AI HYPERTROPHY COACH</div>", 1)
+
           Path('index.html').write_text(s, encoding='utf-8')
           p.write_text(s, encoding='utf-8')
-          print('Prepared patched index.html and hypertrophy-trackernew.html')
+          print('Prepared patched index.html and hypertrophy-trackernew.html with adaptive hypertrophy coaching')
 
       - name: Setup Pages
         uses: actions/configure-pages@v5
