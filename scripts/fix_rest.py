@@ -3,83 +3,110 @@ from pathlib import Path
 p = Path('index.html')
 s = p.read_text(encoding='utf-8')
 
-# The app declares DATA with `let`, so it is not exposed as window.DATA.
-# Use the actual global lexical binding instead.
-s = s.replace('data-action="startPicked">Start Workout', 'id="startPickedBtn" data-action="startPicked">Start Workout')
-
-patch = r'''<script>
-(function(){
-  function wireRestPicker(){
-    const picker=document.getElementById('dayPicker');
-    const btn=document.getElementById('startPickedBtn');
-    if(!picker || !btn) return;
-    const sync=function(){
-      const idx=parseInt(picker.value,10);
-      if(typeof DATA==='undefined' || !DATA.program) return;
-      const day=DATA.program[idx];
-      const rest=!!day && day.type==='rest';
-      btn.textContent=rest?'Open Rest Day':'Start Workout';
-      btn.onclick=function(){
-        if(rest && typeof startRestDay==='function') startRestDay();
-        else if(typeof startSession==='function') startSession(idx);
-      };
-    };
-    sync();
-    picker.onchange=sync;
+old_render = '''function renderTrain(){
+  if(DATA.activeSession){
+    return renderActiveSession();
   }
-
-  function wireTodayButton(){
-    if(typeof DATA==='undefined' || typeof getNextProgramIndex!=='function') return;
-    const btn=document.querySelector('[data-action="startToday"]');
-    if(!btn) return;
-    const idx=getNextProgramIndex();
-    const day=DATA.program[idx];
-    if(day && day.type==='rest'){
-      btn.textContent='Open Rest Day';
-      btn.onclick=function(){ if(typeof startRestDay==='function') startRestDay(); };
-    }
+  const todayIdx = getNextProgramIndex();'''
+new_render = '''function renderTrain(){
+  if(DATA.activeSession){
+    return renderActiveSession();
   }
-
-  function installRestScreen(){
-    if(typeof startRestDay!=='function' || window.__restDayFixed) return;
-    const original=startRestDay;
-    window.__restDayFixed=true;
-    window.startRestDay=function(){
-      const restIdx=DATA.program.findIndex(d=>d.type==='rest');
-      if(restIdx<0) return;
-      original();
-      const content=document.getElementById('content');
-      if(!content) return;
-      setTimeout(function(){
-        content.innerHTML=`
-          <div class="card" style="text-align:center;padding:30px 20px;background:linear-gradient(155deg,#202a2a,#1a2023);">
-            <div style="font-size:54px;line-height:1;margin-bottom:14px;">😴</div>
-            <div style="font-size:12px;color:var(--teal);font-weight:900;letter-spacing:.7px;">RECOVERY</div>
-            <h2 style="font-size:28px;margin:5px 0 8px;">REST DAY</h2>
-            <p style="color:var(--text-dim);font-size:14px;line-height:1.5;margin:0 auto 20px;max-width:330px;">No sets. No reps. No workout. Recover, eat well, sleep and come back stronger.</p>
-            <div style="display:flex;gap:8px;justify-content:center;flex-wrap:wrap;margin-bottom:20px;">
-              <span class="pill pill-dim">Recovery</span><span class="pill pill-dim">Muscle growth</span><span class="pill pill-dim">No training</span>
-            </div>
-            <button class="btn btn-primary" id="fixedLogRest">Log Rest Day</button>
-          </div>
-          <div class="card card-tight">
-            <div class="row"><strong>Optional recovery</strong><span class="pill pill-teal">Easy</span></div>
-            <div style="color:var(--text-dim);font-size:13px;line-height:1.5;margin-top:8px;">Light walking, mobility or easy cardio is fine. Nothing needs to be logged as a set.</div>
-          </div>`;
-        document.getElementById('fixedLogRest').onclick=function(){
-          save();
-          setTab('home');
-        };
-      },0);
-    };
+  if(DATA.restDayOpen){
+    return renderRestDayScreen();
   }
+  const todayIdx = getNextProgramIndex();'''
+if old_render in s:
+    s = s.replace(old_render, new_render, 1)
 
-  function run(){ wireRestPicker(); wireTodayButton(); installRestScreen(); }
-  run();
-  new MutationObserver(run).observe(document.body,{childList:true,subtree:true});
-})();
-</script>'''
+old_button = '''<button class="btn btn-primary" data-action="startPicked">Start Workout</button>'''
+new_button = '''<button class="btn btn-primary" data-action="startPicked">${DATA.program[todayIdx] && DATA.program[todayIdx].type==='rest' ? 'Open Rest Day' : 'Start Workout'}</button>'''
+if old_button in s:
+    s = s.replace(old_button, new_button, 1)
 
-s = s.replace('</body>', patch + '\n</body>', 1)
+old_handler = '''}else if(action==='startPicked'){
+      el.onclick = ()=>{ const idx = parseInt(document.getElementById('dayPicker').value); startSession(idx); };'''
+new_handler = '''}else if(action==='startPicked'){
+      el.onclick = ()=>{
+        const idx = parseInt(document.getElementById('dayPicker').value);
+        const day = DATA.program[idx];
+        if(day && day.type==='rest') startRestDay();
+        else startSession(idx);
+      };'''
+if old_handler in s:
+    s = s.replace(old_handler, new_handler, 1)
+
+old_rest = '''function startRestDay(){
+  const restIdx = DATA.program.findIndex(d=>d.type==='rest');
+  if(restIdx>=0) startSession(restIdx);
+}'''
+new_rest = '''function startRestDay(){
+  const restIdx = DATA.program.findIndex(d=>d.type==='rest');
+  if(restIdx<0) return;
+  DATA.restDayOpen = true;
+  DATA.activeSession = null;
+  save();
+  setTab('train');
+}
+
+function renderRestDayScreen(){
+  return `
+    <div class="card" style="text-align:center;padding:30px 20px;background:linear-gradient(155deg,#202a2a,#1a2023);">
+      <div style="font-size:54px;line-height:1;margin-bottom:14px;">😴</div>
+      <div style="font-size:12px;color:var(--teal);font-weight:900;letter-spacing:.7px;">RECOVERY</div>
+      <h2 style="font-size:28px;margin:5px 0 8px;">REST DAY</h2>
+      <p style="color:var(--text-dim);font-size:14px;line-height:1.5;margin:0 auto 20px;max-width:330px;">No sets. No reps. No workout. Recover, eat well, sleep and come back stronger.</p>
+      <div style="display:flex;gap:8px;justify-content:center;flex-wrap:wrap;margin-bottom:20px;">
+        <span class="pill pill-dim">Recovery</span><span class="pill pill-dim">Muscle growth</span><span class="pill pill-dim">No training</span>
+      </div>
+      <button class="btn btn-primary" data-action="logRestDay">Log Rest Day</button>
+    </div>
+    <div class="card card-tight">
+      <div class="row"><strong>Optional recovery</strong><span class="pill pill-teal">Easy</span></div>
+      <div style="color:var(--text-dim);font-size:13px;line-height:1.5;margin-top:8px;">Light walking, mobility or easy cardio is fine. Nothing needs to be logged as a set.</div>
+    </div>`;
+}
+
+function logRestDay(){
+  const restDay = DATA.program.find(d=>d.type==='rest');
+  if(!restDay) return;
+  DATA.sessions.push({
+    id:'sess_'+Date.now(),
+    date:todayISO(),
+    startedAt:Date.now(),
+    finishedAt:Date.now(),
+    dayId:restDay.id,
+    dayName:restDay.name,
+    weekNumber:getWeekNumber(),
+    phase:getPhase(getWeekNumber()).name,
+    exercises:[],
+    kneePain:{before:null,after:null,nextMorning:null},
+    notes:'Rest day'
+  });
+  DATA.restDayOpen = false;
+  save();
+  setTab('home');
+}'''
+if old_rest in s:
+    s = s.replace(old_rest, new_rest, 1)
+
+old_event = '''}else if(action==='startRestDay'){
+      el.onclick = ()=> startRestDay();'''
+new_event = '''}else if(action==='startRestDay'){
+      el.onclick = ()=> startRestDay();
+    }else if(action==='logRestDay'){
+      el.onclick = ()=> logRestDay();'''
+if old_event in s:
+    s = s.replace(old_event, new_event, 1)
+
+# Remove the old appended DOM patch if it exists; source-level logic above is now authoritative.
+marker = '<script>\n(function(){\n  function wireRestPicker()'
+idx = s.find(marker)
+if idx != -1:
+    end = s.find('</script>', idx)
+    if end != -1:
+        end += len('</script>')
+        s = s[:idx] + s[end:]
+
 p.write_text(s, encoding='utf-8')
-print('Applied rest-day picker scope fix')
+print('Applied source-level rest-day fix')
