@@ -88,4 +88,12 @@ s = s.replace('</style>', css + '\n</style>', 1)
 last_script = s.rfind('</script>')
 s = s[:last_script] + '\n' + js + '\n' + s[last_script:]
 p.write_text(s, encoding='utf-8')
-# Trigger deployment of the completed delete-workout patch.
+
+# The repository is also configured with GitHub Pages' branch source.
+# Commit the patched index so that the branch-based Pages deployment receives it.
+import subprocess
+subprocess.run(['git','config','user.name','github-actions[bot]'], check=True)
+subprocess.run(['git','config','user.email','41898282+github-actions[bot]@users.noreply.github.com'], check=True)
+subprocess.run(['git','add','index.html'], check=True)
+subprocess.run(['git','commit','-m','Apply delete workout feature to live app'], check=True)
+subprocess.run(['git','push'], check=True)
