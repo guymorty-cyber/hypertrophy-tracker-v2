@@ -2,3 +2,4 @@ Trigger sequence-fix workflow.
 Rest day recovery UI update.
 Dedicated rest day screen fix.
 Final picker fix.
+Fix DATA scope in rest picker.
