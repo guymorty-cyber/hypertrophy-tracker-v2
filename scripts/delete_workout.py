@@ -5,7 +5,7 @@ s = p.read_text(encoding='utf-8')
 
 marker = '/* DELETE WORKOUT FEATURE */'
 if marker in s:
-    raise SystemExit('Delete workout feature already patched')
+    raise SystemExit(0)
 
 css = r'''
 /* DELETE WORKOUT FEATURE */
