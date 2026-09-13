@@ -88,3 +88,4 @@ s = s.replace('</style>', css + '\n</style>', 1)
 last_script = s.rfind('</script>')
 s = s[:last_script] + '\n' + js + '\n' + s[last_script:]
 p.write_text(s, encoding='utf-8')
+# Trigger deployment of the completed delete-workout patch.
