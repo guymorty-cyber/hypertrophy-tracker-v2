@@ -1,0 +1,97 @@
+from pathlib import Path
+
+p = Path('index.html')
+s = p.read_text(encoding='utf-8')
+
+# Make the picker button explicitly controllable by the rest-day guard.
+s = s.replace('data-action="startPicked">Start Workout', 'id="startPickedBtn" data-action="startPicked">Start Workout')
+
+patch = r'''<script>
+(function(){
+  function wireRestPicker(){
+    const picker=document.getElementById('dayPicker');
+    const btn=document.getElementById('startPickedBtn');
+    if(!picker || !btn || !window.DATA) return;
+    const sync=function(){
+      const idx=parseInt(picker.value,10);
+      const day=DATA.program[idx];
+      const rest=!!day && day.type==='rest';
+      btn.textContent=rest?'Open Rest Day':'Start Workout';
+      btn.onclick=function(){
+        if(rest && typeof window.startRestDay==='function') window.startRestDay();
+        else if(typeof window.startSession==='function') window.startSession(idx);
+      };
+    };
+    picker.removeEventListener('change',sync);
+    picker.addEventListener('change',sync);
+    sync();
+  }
+
+  function wireTodayButton(){
+    if(!window.DATA || typeof window.getNextProgramIndex!=='function') return;
+    const btn=document.querySelector('[data-action="startToday"]');
+    if(!btn) return;
+    const idx=getNextProgramIndex();
+    const day=DATA.program[idx];
+    if(day && day.type==='rest'){
+      btn.textContent='Open Rest Day';
+      btn.onclick=function(){ if(typeof window.startRestDay==='function') window.startRestDay(); };
+    }
+  }
+
+  function installRestScreen(){
+    if(typeof window.startRestDay!=='function') return;
+    if(window.__restDayFixed) return;
+    const original=window.startRestDay;
+    window.startRestDay=function(){
+      const restIdx=DATA.program.findIndex(d=>d.type==='rest');
+      if(restIdx<0) return;
+      const content=document.getElementById('content');
+      if(!content){ original(); return; }
+
+      // Initialise the underlying rest session first so the existing save/sequence logic is retained.
+      original();
+      setTimeout(function(){
+        content.innerHTML=`
+          <div class="card" style="text-align:center;padding:30px 20px;background:linear-gradient(155deg,#202a2a,#1a2023);">
+            <div style="font-size:54px;line-height:1;margin-bottom:14px;">😴</div>
+            <div style="font-size:12px;color:var(--teal);font-weight:900;letter-spacing:.7px;">RECOVERY</div>
+            <h2 style="font-size:28px;margin:5px 0 8px;">REST DAY</h2>
+            <p style="color:var(--text-dim);font-size:14px;line-height:1.5;margin:0 auto 20px;max-width:330px;">No sets. No reps. No workout. Recover, eat well, sleep and come back stronger.</p>
+            <div style="display:flex;gap:8px;justify-content:center;flex-wrap:wrap;margin-bottom:20px;">
+              <span class="pill pill-dim">Recovery</span><span class="pill pill-dim">Muscle growth</span><span class="pill pill-dim">No training</span>
+            </div>
+            <button class="btn btn-primary" id="fixedLogRest">Log Rest Day</button>
+          </div>
+          <div class="card card-tight">
+            <div class="row"><strong>Optional recovery</strong><span class="pill pill-teal">Easy</span></div>
+            <div style="color:var(--text-dim);font-size:13px;line-height:1.5;margin-top:8px;">Light walking, mobility or easy cardio is fine. Nothing needs to be logged as a set.</div>
+          </div>`;
+
+        document.getElementById('fixedLogRest').onclick=function(){
+          // Restore the normal rest-session screen and use its existing Log Rest Day action.
+          original();
+          setTimeout(function(){
+            const buttons=Array.from(document.querySelectorAll('button'));
+            const saveBtn=buttons.find(b=>/log rest day|finish workout|complete workout|save/i.test((b.textContent||'').trim()));
+            if(saveBtn) saveBtn.click();
+          },50);
+        };
+      },0);
+    };
+    window.__restDayFixed=true;
+  }
+
+  function run(){ wireRestPicker(); wireTodayButton(); installRestScreen(); }
+  run();
+  new MutationObserver(run).observe(document.body,{childList:true,subtree:true});
+})();
+</script>'''
+
+if 'window.__restDayFixed' not in s:
+    s = s.replace('</body>', patch + '\n</body>', 1)
+else:
+    s = s.replace('</body>', patch + '\n</body>', 1)
+
+p.write_text(s, encoding='utf-8')
+print('Applied robust rest-day picker and recovery-screen fix')
