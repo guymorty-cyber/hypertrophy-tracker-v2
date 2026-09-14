@@ -45,6 +45,9 @@ jobs:
       - name: Fix History delete UI
         run: python scripts/fix_history_delete.py
 
+      - name: Apply explicit weight coaching fix
+        run: python scripts/weight_coaching_fix.py
+
       - name: Setup Pages
         uses: actions/configure-pages@v5
 
