@@ -48,6 +48,9 @@ jobs:
       - name: Apply explicit weight coaching fix
         run: python scripts/weight_coaching_fix.py
 
+      - name: Apply background-safe rest timer fix
+        run: python scripts/background_timer_fix.py
+
       - name: Setup Pages
         uses: actions/configure-pages@v5
 
