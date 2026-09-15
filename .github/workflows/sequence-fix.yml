@@ -65,3 +65,5 @@ jobs:
         uses: actions/deploy-pages@v4
         with:
           artifact_name: hypertrophy-pages-${{ github.run_id }}
+
+      # Force a fresh deployment after the Pages artifact-name collision fix.
