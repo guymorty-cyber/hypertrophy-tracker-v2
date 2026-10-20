@@ -233,6 +233,15 @@ a.linklike{color:var(--accent);text-decoration:none;font-weight:700;font-size:13
 .delete-workout-date{font-size:11px;color:var(--text-dim);margin-top:2px}
 .delete-workout-btn{flex:0 0 auto;border:1px solid rgba(229,72,77,.45);background:transparent;color:var(--danger);border-radius:8px;padding:7px 10px;font-size:11px;font-weight:800}
 
+
+#savePanel{max-width:480px;padding:8px 16px 0;font-size:11px;color:var(--text-dim);}
+#saveStatus.save-error{display:block;color:var(--warn);font-size:13px;line-height:1.5;padding:10px;background:var(--surface-2);border-radius:8px;}
+#savePanel button,#undoPanel button{margin:6px 4px;padding:7px 12px;border-radius:8px;border:1px solid var(--line);background:var(--surface-3);color:var(--text);font-weight:700;}
+#undoPanel{margin:10px 16px;padding:10px;border:1px solid var(--teal);border-radius:10px;font-size:13px;}
+.history-delete-btn{background:transparent;color:var(--danger);border:1px solid var(--danger);border-radius:8px;padding:8px 12px;margin-top:12px;cursor:pointer;}
+.workout-progress{font-size:13px;color:var(--teal);margin:0 0 12px;}
+.setlabels{display:grid;grid-template-columns:34px 1fr 1fr 34px;gap:8px;padding:7px 16px;color:var(--text-dim);font-size:11px;text-align:center;border-top:1px solid var(--line);}
+[hidden]{display:none!important;}
 </style>
 </head>
 <body>
@@ -248,6 +257,8 @@ a.linklike{color:var(--accent);text-decoration:none;font-weight:700;font-size:13
     </div>
     <button class="iconbtn" id="exportQuickBtn" title="More">⋯</button>
   </div>
+  <div id="savePanel"><span id="saveStatus" role="status" aria-live="polite">Saved on this device</span><button id="retrySave" hidden>Retry save</button><button id="exportRecovery" hidden>Export recovery data</button><button id="updateApp" hidden>Update app</button></div>
+  <div id="undoPanel" hidden>Workout deleted. <button id="undoDelete">Undo</button></div>
   <div id="content"></div>
 </div>
 
@@ -272,6 +283,8 @@ a.linklike{color:var(--accent);text-decoration:none;font-weight:700;font-size:13
 <script>
 /* ============================= DATA ============================= */
 const STORAGE_KEY = 'htData_v1';
+const APP_BUILD = '__BUILD_SHA__';
+let availableBuild = null;
 
 const PROGRAM_TEMPLATE = [
  {id:'d1',name:'Upper A',short:'Upper A',type:'training',isLower:false,exercises:[
@@ -354,22 +367,149 @@ function defaultData(){
   };
 }
 
-function todayISO(){ return new Date().toISOString().slice(0,10); }
+function todayISO(){ const d=new Date(); return [d.getFullYear(),String(d.getMonth()+1).padStart(2,'0'),String(d.getDate()).padStart(2,'0')].join('-'); }
 
-let DATA = load();
 
+
+const BACKUP_KEY = STORAGE_KEY + '_backup';
+let lastStoredRaw = null;
+let storageBlocked = false;
+let unsavedChanges = false;
+let saveMessage = '';
+let recoveryRaw = null;
+let deletedWorkout = null;
+
+async function checkForUpdate(){
+  if(APP_BUILD.startsWith('__')) return;
+  try{
+    const response=await fetch('./version.json',{cache:'no-store'});
+    if(!response.ok) return;
+    const version=await response.json();
+    if(typeof version.build==='string' && /^[a-f0-9]{40}$/.test(version.build) && version.build!==APP_BUILD){
+      availableBuild=version.build;
+      document.getElementById('updateApp').hidden=false;
+    }
+  }catch(e){} // The tracker remains usable without a connection.
+}
+function validateData(value){
+  const fail = ()=>{ throw new Error('This file is not a valid Hypertrophy Tracker backup.'); };
+  const object = v=>v && typeof v==='object' && !Array.isArray(v);
+  const text = v=>typeof v==='string';
+  const id = v=>(text(v) && v.length>0) || (typeof v==='number' && Number.isFinite(v));
+  const number = v=>typeof v==='number' && Number.isFinite(v) && v>=0;
+  const date = v=>text(v) && /^\d{4}-\d{2}-\d{2}$/.test(v) && !Number.isNaN(Date.parse(v+'T00:00:00')) && new Date(v+'T00:00:00Z').toISOString().slice(0,10)===v;
+  const unique = rows=>new Set(rows.map(r=>String(r.id))).size===rows.length;
+  if(!object(value) || !Array.isArray(value.program) || !value.program.length ||
+     !Array.isArray(value.sessions) || !Array.isArray(value.bodyweight) ||
+     !Array.isArray(value.nutrition) || !date(value.programStartDate)) fail();
+  if(!unique(value.program) || !unique(value.sessions)) fail();
+  for(const day of value.program){
+    if(!object(day) || !id(day.id) || !text(day.name) ||
+       !['training','rest'].includes(day.type) || !Array.isArray(day.exercises)) fail();
+    if(!unique(day.exercises) || !/^[\w-]+$/.test(String(day.id))) fail();
+    for(const ex of day.exercises){
+      if(!object(ex) || !id(ex.id) || !/^[\w-]+$/.test(String(ex.id)) || !text(ex.name) || !Number.isInteger(ex.sets) ||
+         ex.sets<1 || ex.sets>100 || !number(ex.repMin) || !number(ex.repMax) ||
+         ex.repMin>ex.repMax || !number(ex.restSec) || !number(ex.inc)) fail();
+    }
+  }
+  const normalizeSession = s=>{
+    if(!object(s) || !id(s.id) || !id(s.dayId) || !text(s.dayName) ||
+       !date(s.date) || !number(s.startedAt) || !Array.isArray(s.exercises)) fail();
+    for(const e of s.exercises){
+      if(!object(e) || !id(e.exerciseId) || !text(e.name) || !Array.isArray(e.sets)) fail();
+      for(const st of e.sets){
+        if(!object(st) || (st.weight!==null && !number(st.weight)) ||
+           (st.reps!==null && (!number(st.reps) || !Number.isInteger(st.reps))) ||
+           typeof st.completed!=='boolean') fail();
+      }
+    }
+    const pain = {before:null,after:null,nextMorning:null,...(s.kneePain||{})};
+    if(Object.values(pain).some(v=>v!==null && (!number(v) || v>10))) fail();
+    return {...s,kneePain:pain,notes:text(s.notes)?s.notes:''};
+  };
+  const sessions = value.sessions.map(normalizeSession);
+  const activeSession = value.activeSession ? normalizeSession(value.activeSession) : null;
+  if(activeSession && (!value.program.some(d=>d.id===activeSession.dayId) ||
+      sessions.some(s=>String(s.id)===String(activeSession.id)))) fail();
+  if(value.bodyweight.some(b=>!object(b)||!date(b.date)||!number(b.weight)||b.weight<=0) ||
+     value.nutrition.some(n=>!object(n)||!date(n.date)||!number(n.calories)||!number(n.protein))) fail();
+  const pending = value.pendingNextMorning;
+  return {...defaultData(),...value,sessions,activeSession,
+    pendingNextMorning:pending && sessions.some(s=>String(s.id)===String(pending.sessionId))?pending:null};
+}
+
+function updateSaveStatus(message, error=false){
+  saveMessage = message;
+  const el = document.getElementById('saveStatus');
+  if(el){ el.textContent=message; el.classList.toggle('save-error',error); }
+  const recovery = document.getElementById('exportRecovery');
+  if(recovery) recovery.hidden = !storageBlocked;
+  const retry = document.getElementById('retrySave');
+  if(retry) retry.hidden = !unsavedChanges || storageBlocked;
+}
 function load(){
   try{
     const raw = localStorage.getItem(STORAGE_KEY);
+    lastStoredRaw = raw;
     if(!raw) return defaultData();
-    const parsed = JSON.parse(raw);
-    // merge in case of new fields
-    return Object.assign(defaultData(), parsed);
-  }catch(e){ return defaultData(); }
+    recoveryRaw = raw;
+    return validateData(JSON.parse(raw));
+  }catch(e){
+    storageBlocked = true;
+    saveMessage = 'Saved data could not be read. Export recovery data, then restore or import a valid backup in More.';
+    return defaultData();
+  }
 }
-function save(){
-  try{ localStorage.setItem(STORAGE_KEY, JSON.stringify(DATA)); }catch(e){ console.error('save failed', e); }
+function persist(candidate, replaceDamaged=false){
+  unsavedChanges = true;
+  try{
+    if(storageBlocked && !replaceDamaged) throw new Error(saveMessage || 'Restore your saved data in More before saving.');
+    const current = localStorage.getItem(STORAGE_KEY);
+    if(current!==lastStoredRaw) throw new Error('Data changed in another tab. Export your current data in More, then reload before continuing.');
+    const serialized = JSON.stringify(validateData(candidate));
+    // Preserve the previous valid snapshot. A full store must not prevent saving.
+    if(current){
+      try{ validateData(JSON.parse(current)); localStorage.setItem(BACKUP_KEY,current); }catch(e){}
+    }
+    localStorage.setItem(STORAGE_KEY,serialized);
+    lastStoredRaw = serialized;
+    recoveryRaw = serialized;
+    storageBlocked = false;
+    unsavedChanges = false;
+    updateSaveStatus('Saved on this device');
+    return true;
+  }catch(e){
+    updateSaveStatus(e.name==='QuotaExceededError' ? 'Storage is full. Export your data in More before closing.' :
+      e.message || 'Could not save. Keep this page open and export your data in More.',true);
+    return false;
+  }
 }
+function save(){ return persist(DATA); }
+function commitData(candidate, replaceDamaged=false){
+  if(!persist(candidate,replaceDamaged)) return false;
+  DATA = candidate;
+  return true;
+}
+function restoreBackup(){
+  try{
+    const raw=localStorage.getItem(BACKUP_KEY);
+    if(!raw) return alert('No previous saved snapshot is available on this device.');
+    const restored=validateData(JSON.parse(raw));
+    restored.restEndAt=null;
+    if(!confirm('Restore the previous saved snapshot? Export your current data first if you need to keep it.')) return;
+    if(!commitData(restored,true)) return;
+    deletedWorkout=null;
+    document.getElementById('undoPanel').hidden=true;
+    DATA.restEndAt=null;
+    stopRestTimer(false); closeModal(); renderTab();
+  }catch(e){ alert('The saved snapshot could not be restored: '+e.message); }
+}
+function exportRecovery(){
+  downloadJSON(recoveryRaw || lastStoredRaw || '{}','hypertrophy-recovery-'+todayISO()+'.json');
+}
+
+let DATA = load();
 
 /* ============================= HELPERS ============================= */
 function fmtDate(iso){
@@ -795,13 +935,14 @@ function renderActiveSession(){
       </div>
       <button class="btn-ghost" data-action="cancelSession">Cancel</button>
     </div>
+    <div class="workout-progress">${sess.exercises.reduce((n,e)=>n+e.sets.filter(s=>s.completed).length,0)} / ${sess.exercises.reduce((n,e)=>n+e.sets.length,0)} sets complete · Your session saves as you train</div>
     ${kneeBefore}
     ${exercisesHtml}
     ${kneeAfter}
     <div class="card">
       <div class="field" style="margin-bottom:12px;">
         <label>Workout notes</label>
-        <textarea id="workoutNotes" placeholder="How did the session feel overall?">${escapeHtml(sess.notes||'')}</textarea>
+        <textarea id="workoutNotes" data-action="workoutNotes" placeholder="How did the session feel overall?">${escapeHtml(sess.notes||'')}</textarea>
       </div>
       <button class="btn btn-primary" data-action="finishWorkout">Finish Workout</button>
     </div>
@@ -827,14 +968,14 @@ function renderExerciseBlock(ex, log, lastLog, rec){
     return `<div class="setrow">
       <div class="setnum">${i+1}</div>
       <div>
-        <input type="number" inputmode="decimal" placeholder="${prevSet?prevSet.weight:'kg'}" value="${s.weight||''}" data-action="setField" data-exid="${ex.id}" data-setidx="${i}" data-field="weight">
+        <input type="number" min="0" step="0.25" aria-label="Weight in kilograms" inputmode="decimal" placeholder="${prevSet?prevSet.weight:'kg'}" value="${s.weight??''}" data-action="setField" data-exid="${ex.id}" data-setidx="${i}" data-field="weight">
         ${prevSet?`<span class="prevmini">prev ${prevSet.weight}</span>`:''}
       </div>
       <div>
-        <input type="number" inputmode="numeric" placeholder="${prevSet?prevSet.reps:'reps'}" value="${s.reps||''}" data-action="setField" data-exid="${ex.id}" data-setidx="${i}" data-field="reps">
+        <input type="number" min="1" step="1" aria-label="Repetitions" inputmode="numeric" placeholder="${prevSet?prevSet.reps:'reps'}" value="${s.reps||''}" data-action="setField" data-exid="${ex.id}" data-setidx="${i}" data-field="reps">
         ${prevSet?`<span class="prevmini">prev ${prevSet.reps}</span>`:''}
       </div>
-      <div class="checkwrap"><input type="checkbox" ${s.completed?'checked':''} data-action="toggleComplete" data-exid="${ex.id}" data-setidx="${i}"></div>
+      <div class="checkwrap"><input aria-label="Complete set" type="checkbox" ${s.completed?'checked':''} data-action="toggleComplete" data-exid="${ex.id}" data-setidx="${i}"></div>
     </div>`;
   }).join('');
 
@@ -861,6 +1002,7 @@ function renderExerciseBlock(ex, log, lastLog, rec){
     <div class="setrow" style="border-top:none;padding-top:0;padding-bottom:0;color:var(--text-faint);font-size:11px;">
       <div></div><div style="text-align:center;">Weight kg</div><div style="text-align:center;">Reps</div><div></div>
     </div>
+    <div class="setlabels"><span>Set</span><span>kg</span><span>Reps</span><span>Done</span></div>
     ${setsRows}
     ${recoHtml}
     <div class="notesbox">
@@ -994,17 +1136,18 @@ function renderHistory(){
   `;
 }
 function renderHistItem(s){
-  return `<div class="hist-item" data-action="viewSession" data-sid="${s.id}">
+  return `<div class="hist-item" data-action="viewSession" data-sid="${escapeHtml(s.id)}">
     <div class="row">
       <div class="dname">${escapeHtml(s.dayName)}</div>
       <div class="ddate">${fmtDate(s.date)}</div>
     </div>
     <div class="hist-meta">
-      <span>${s.totalSets} sets</span>
-      <span>${s.totalReps} reps</span>
-      <span>${Math.round(s.totalVolume)} kg vol</span>
+      <span>${s.totalSets||0} sets</span>
+      <span>${s.totalReps||0} reps</span>
+      <span>${Math.round(s.totalVolume||0)} kg vol</span>
       ${s.newPRs && s.newPRs.length ? `<span class="pill pill-accent" style="padding:2px 8px;">${s.newPRs.length} PR${s.newPRs.length>1?'s':''}</span>`:''}
     </div>
+    <button type="button" class="history-delete-btn" data-action="deleteWorkout" data-sid="${escapeHtml(s.id)}">Delete workout</button>
   </div>`;
 }
 
@@ -1059,7 +1202,9 @@ function renderMore(){
         Import data (JSON)
         <input type="file" id="importFile" accept="application/json" style="display:none;">
       </label>
+      <button class="btn btn-outline" id="restoreBackupBtn" style="margin-bottom:10px;">Restore previous save</button>
       <button class="btn btn-danger-outline" data-action="resetData">Reset all data</button>
+      <p style="font-size:12px;color:var(--text-dim);">Data is saved on this device. Export a backup regularly before changing devices or clearing browser data.</p>
     </div>
     <div class="card card-tight" style="text-align:center;">
       <div style="font-size:12px;color:var(--text-faint);">Tip: Add this page to your Home Screen (Share → Add to Home Screen) so it opens like an app.</div>
@@ -1100,11 +1245,13 @@ function attachTabEvents(){
         else startSession(idx);
       };
     }else if(action==='cancelSession'){
-      el.onclick = ()=>{ if(confirm('Discard this workout?')){ DATA.activeSession=null; save(); stopRestTimer(); renderTab(); } };
+      el.onclick = ()=>{ if(confirm('Discard this workout?')){ if(commitData({...DATA,activeSession:null,restEndAt:null})){ stopRestTimer(false); renderTab(); } } };
     }else if(action==='setField'){
       el.oninput = ()=>{ updateSetField(el.dataset.exid, parseInt(el.dataset.setidx), el.dataset.field, el.value); };
     }else if(action==='toggleComplete'){
       el.onchange = ()=>{ toggleSetComplete(el.dataset.exid, parseInt(el.dataset.setidx), el.checked); };
+    }else if(action==='workoutNotes'){
+      el.oninput = ()=>{ if(DATA.activeSession){ DATA.activeSession.notes=el.value; save(); } };
     }else if(action==='exNotes'){
       el.oninput = ()=>{ setExerciseNotes(el.dataset.exid, el.value); };
     }else if(action==='startRest'){
@@ -1129,7 +1276,9 @@ function attachTabEvents(){
     }else if(action==='exportData'){
       el.onclick = ()=> exportData();
     }else if(action==='resetData'){
-      el.onclick = ()=>{ if(confirm('This will erase ALL data permanently. Continue?')){ if(confirm('Are you absolutely sure?')){ localStorage.removeItem(STORAGE_KEY); DATA=defaultData(); save(); renderTab(); } } };
+      el.onclick = ()=>{ if(confirm('This will erase ALL data permanently. Continue?')){ if(confirm('Are you absolutely sure?')){ if(commitData(defaultData(),true)){ deletedWorkout=null; document.getElementById('undoPanel').hidden=true; stopRestTimer(false); closeModal(); renderTab(); } } } };
+    }else if(action==='deleteWorkout'){
+      el.onclick = event=>{ event.stopPropagation(); deleteWorkout(el.dataset.sid); };
     }else if(action==='viewSession'){
       el.onclick = ()=> openSessionDetail(el.dataset.sid);
     }
@@ -1143,6 +1292,8 @@ function attachTabEvents(){
   if(histSearch) histSearch.oninput = ()=>{ historyFilterQuery = histSearch.value; renderTab(); setTimeout(()=>{ const s=document.getElementById('histSearch'); if(s){s.focus(); s.setSelectionRange(s.value.length,s.value.length);} },0); };
   const editDaySelect = document.getElementById('editDaySelect');
   if(editDaySelect){ editDaySelect.onchange = ()=> renderDayEditor(parseInt(editDaySelect.value)); renderDayEditor(parseInt(editDaySelect.value)); }
+  const restore=document.getElementById('restoreBackupBtn');
+  if(restore) restore.onclick=restoreBackup;
   const importFile = document.getElementById('importFile');
   if(importFile) importFile.onchange = (e)=> importData(e);
 }
@@ -1223,6 +1374,7 @@ function openExerciseEditModal(dayIdx, exId){
     const inc = parseFloat(document.getElementById('fEditInc').value)||2.5;
     const note = document.getElementById('fEditNote').value.trim();
     if(!name){ alert('Please enter an exercise name.'); return; }
+    if(sets<1 || sets>100 || repMin<1 || repMax<repMin || restSec<0 || inc<0){ alert('Check sets, rep range, rest time and weight step.'); return; }
     if(isNew){
       const newEx = {id:'custom_'+Date.now(), name, sets, repMin, repMax, restSec, inc, cat:'moderate'};
       if(note) newEx.note = note;
@@ -1249,9 +1401,8 @@ function openExerciseEditModal(dayIdx, exId){
 function startRestDay(){
   const restIdx = DATA.program.findIndex(d=>d.type==='rest');
   if(restIdx<0) return;
-  DATA.restDayOpen = true;
-  DATA.activeSession = null;
-  save();
+  if(DATA.activeSession){ setTab('train'); return; }
+  if(!commitData({...DATA,restDayOpen:true})) return;
   setTab('train');
 }
 
@@ -1276,8 +1427,8 @@ function renderRestDayScreen(){
 function logRestDay(){
   const restDay = DATA.program.find(d=>d.type==='rest');
   if(!restDay) return;
-  DATA.sessions.push({
-    id:'sess_'+Date.now(),
+  const session={
+    id:newSessionId(),
     date:todayISO(),
     startedAt:Date.now(),
     finishedAt:Date.now(),
@@ -1287,17 +1438,19 @@ function logRestDay(){
     phase:getPhase(getWeekNumber()).name,
     exercises:[],
     kneePain:{before:null,after:null,nextMorning:null},
-    notes:'Rest day'
-  });
-  DATA.restDayOpen = false;
-  save();
+    notes:'Rest day', totalSets:0, totalReps:0, totalVolume:0
+  };
+  if(!commitData({...DATA,sessions:[...DATA.sessions,session],restDayOpen:false})) return;
   setTab('home');
 }
 
 function startSession(dayIdx){
+  if(DATA.activeSession){ setTab('train'); return; }
   const day = DATA.program[dayIdx];
+  if(!day) return;
+  if(day.type==='rest'){ startRestDay(); return; }
   const sess = {
-    id: 'sess_'+Date.now(),
+    id: newSessionId(),
     date: todayISO(),
     startedAt: Date.now(),
     dayId: day.id,
@@ -1313,23 +1466,38 @@ function startSession(dayIdx){
     kneePain: {before:null, after:null, nextMorning:null},
     notes: ''
   };
-  DATA.activeSession = sess;
-  save();
+  if(!commitData({...DATA,activeSession:sess,restDayOpen:false})) return;
   setTab('train');
 }
+function newSessionId(){ return 'sess_'+(typeof crypto!=='undefined' && crypto.randomUUID ? crypto.randomUUID() : Date.now()+'_'+Math.random().toString(36).slice(2)); }
 function getActiveExLog(exId){
   return DATA.activeSession.exercises.find(e=>e.exerciseId===exId);
 }
 function updateSetField(exId, setIdx, field, value){
-  const log = getActiveExLog(exId);
-  const num = value===''? null : parseFloat(value);
-  log.sets[setIdx][field] = num;
+  if(!DATA.activeSession || !['weight','reps'].includes(field)) return;
+  const log=getActiveExLog(exId);
+  if(!log || !log.sets[setIdx]) return;
+  const num=value===''?null:Number(value);
+  if(num!==null && (!Number.isFinite(num) || num<0 || (field==='reps' && !Number.isInteger(num)))){
+    updateSaveStatus('Use a non-negative weight and whole-number reps.',true);
+    return;
+  }
+  log.sets[setIdx][field]=num;
+  if(log.sets[setIdx].completed && (num===null || (field==='reps' && num===0))) log.sets[setIdx].completed=false;
   save();
 }
 function toggleSetComplete(exId, setIdx, checked){
-  const log = getActiveExLog(exId);
-  log.sets[setIdx].completed = checked;
-  save();
+  if(!DATA.activeSession) return;
+  const log=getActiveExLog(exId), ex=findExercise(exId);
+  if(!log || !log.sets[setIdx]) return;
+  const set=log.sets[setIdx];
+  if(checked && (!Number.isFinite(set.weight) || set.weight<0 || !Number.isInteger(set.reps) || set.reps<=0)){
+    alert('Enter the weight (0 for bodyweight) and reps before completing this set.');
+    renderTab(); return;
+  }
+  set.completed=checked;
+  const saved=save();
+  if(checked && saved && ex) startRestTimer(ex.restSec);
   renderTab();
 }
 function setExerciseNotes(exId, val){
@@ -1371,71 +1539,77 @@ function openAltsModal(exId){
 }
 
 function startRestTimer(sec){
-  stopRestTimer();
+  stopRestTimer(false);
   restTimerState.total = sec;
   restTimerState.remaining = sec;
+  restTimerState.endAt = Date.now() + (sec * 1000);
   restTimerState.running = true;
   document.getElementById('resttimer').classList.add('show');
+  DATA.restEndAt=restTimerState.endAt;
+  save();
   updateRestDisplay();
-  restTimerState.interval = setInterval(()=>{
-    restTimerState.remaining--;
-    if(restTimerState.remaining<=0){
-      updateRestDisplay();
-      stopRestTimer();
-      if(navigator.vibrate) navigator.vibrate([200,100,200]);
-      return;
-    }
-    updateRestDisplay();
-  },1000);
+  restTimerState.interval = setInterval(updateRestTimerFromClock, 250);
 }
-function stopRestTimer(){
+function updateRestTimerFromClock(){
+  if(!restTimerState.running || !restTimerState.endAt) return;
+  restTimerState.remaining = Math.max(0, Math.ceil((restTimerState.endAt - Date.now()) / 1000));
+  updateRestDisplay();
+  if(restTimerState.remaining <= 0){
+    const wasRunning = restTimerState.running;
+    stopRestTimer();
+    if(wasRunning && navigator.vibrate) navigator.vibrate([200,100,200]);
+  }
+}
+function stopRestTimer(persistTimer=true){
   if(restTimerState.interval) clearInterval(restTimerState.interval);
   restTimerState.interval = null;
   restTimerState.running = false;
+  restTimerState.endAt = null;
+  if(persistTimer && DATA.restEndAt){ DATA.restEndAt=null; save(); }
   document.getElementById('resttimer').classList.remove('show');
 }
+
+document.addEventListener('visibilitychange', ()=>{
+  if(document.visibilityState === 'visible') updateRestTimerFromClock();
+});
+window.addEventListener('pageshow', updateRestTimerFromClock);
+window.addEventListener('focus', updateRestTimerFromClock);
 function updateRestDisplay(){
   const m = Math.floor(Math.max(0,restTimerState.remaining)/60);
   const s = Math.max(0,restTimerState.remaining)%60;
   document.getElementById('rtTime').textContent = `${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
 }
-document.getElementById('rtAdd30').onclick = ()=>{ restTimerState.remaining+=30; updateRestDisplay(); };
+document.getElementById('rtAdd30').onclick = ()=>{ if(restTimerState.running){ restTimerState.endAt+=30000; DATA.restEndAt=restTimerState.endAt; save(); updateRestTimerFromClock(); } };
 document.getElementById('rtSkip').onclick = ()=> stopRestTimer();
 
 function finishWorkoutFlow(){
-  const sess = DATA.activeSession;
+  if(!DATA.activeSession) return;
+  const sess = JSON.parse(JSON.stringify(DATA.activeSession));
   const day = DATA.program.find(d=>d.id===sess.dayId);
-  if(day.isLower && sess.kneePain.after===null){
-    if(!confirm('Knee pain after workout not logged. Finish anyway?')) return;
+  if(!day) return;
+  const completed = sess.exercises.flatMap(e=>e.sets).filter(s=>s.completed);
+  if(!completed.length) return alert('Complete at least one set before finishing.');
+  if(completed.some(s=>!Number.isFinite(s.weight) || s.weight<0 || !Number.isInteger(s.reps) || s.reps<=0)){
+    return alert('Check completed sets: enter a weight (0 for bodyweight) and a positive whole number of reps.');
   }
-  sess.notes = document.getElementById('workoutNotes') ? document.getElementById('workoutNotes').value : sess.notes;
-  sess.durationSec = Math.round((Date.now()-sess.startedAt)/1000);
-
-  let totalSets=0, totalReps=0, totalVolume=0, newPRs=[];
-  sess.exercises.forEach(exLog=>{
-    const beforePR = getPRFor(exLog.exerciseId);
-    exLog.sets.forEach(s=>{
-      if(s.completed && s.weight>0 && s.reps>0){
-        totalSets++; totalReps+=s.reps; totalVolume += s.weight*s.reps;
-      }
-    });
-  });
-  DATA.sessions.push(sess);
-  // recompute PRs after adding session to detect new ones
-  sess.exercises.forEach(exLog=>{
-    const pr = getPRFor(exLog.exerciseId);
-    if(pr && pr.bestE1RM.sessionId===sess.id){
-      newPRs.push(exLog.name);
-    }
-  });
-  sess.totalSets = totalSets; sess.totalReps = totalReps; sess.totalVolume = totalVolume; sess.newPRs = newPRs;
-
-  if(day.isLower){
-    DATA.pendingNextMorning = {sessionId: sess.id, dayName: day.name, date: sess.date};
-  }
-  DATA.activeSession = null;
-  save();
-  stopRestTimer();
+  if(day.isLower && sess.kneePain.after===null &&
+     !confirm('Knee pain after workout not logged. Finish anyway?')) return;
+  const notes = document.getElementById('workoutNotes');
+  sess.notes = notes ? notes.value : sess.notes;
+  sess.finishedAt = Date.now();
+  sess.durationSec = Math.max(0,Math.round((sess.finishedAt-sess.startedAt)/1000));
+  sess.totalSets=completed.length;
+  sess.totalReps=completed.reduce((n,s)=>n+s.reps,0);
+  sess.totalVolume=completed.reduce((n,s)=>n+s.weight*s.reps,0);
+  sess.newPRs=sess.exercises.filter(e=>{
+    const previous=getPRFor(e.exerciseId);
+    const best=Math.max(0,...e.sets.filter(s=>s.completed && s.weight>0).map(s=>estOneRM(s.weight,s.reps)));
+    return best>0 && (!previous || best>estOneRM(previous.bestE1RM.weight,previous.bestE1RM.reps));
+  }).map(e=>e.name);
+  const candidate={...DATA,sessions:[...DATA.sessions,sess],activeSession:null,restEndAt:null};
+  if(day.isLower) candidate.pendingNextMorning={sessionId:sess.id,dayName:day.name,date:sess.date};
+  if(!commitData(candidate)) return;
+  stopRestTimer(false);
   showSummaryModal(sess);
 }
 
@@ -1484,10 +1658,8 @@ function openNextMorningModal(){
     };
   });
   document.getElementById('nmSave').onclick = ()=>{
-    const sess = DATA.sessions.find(s=>s.id===info.sessionId);
-    if(sess) sess.kneePain.nextMorning = picked;
-    DATA.pendingNextMorning = null;
-    save();
+    const sessions=DATA.sessions.map(s=>s.id===info.sessionId?{...s,kneePain:{...s.kneePain,nextMorning:picked}}:s);
+    if(!commitData({...DATA,sessions,pendingNextMorning:null})) return;
     closeModal();
     renderTab();
   };
@@ -1512,7 +1684,7 @@ function openSessionDetail(sid){
       <div class="summary-box"><div class="big">${s.durationSec?Math.floor(s.durationSec/60):'—'}min</div><div class="lbl">Duration</div></div>
       <div class="summary-box"><div class="big">${s.totalSets}</div><div class="lbl">Sets</div></div>
       <div class="summary-box"><div class="big">${s.totalReps}</div><div class="lbl">Reps</div></div>
-      <div class="summary-box"><div class="big">${Math.round(s.totalVolume)}kg</div><div class="lbl">Volume</div></div>
+      <div class="summary-box"><div class="big">${Math.round(s.totalVolume||0)}kg</div><div class="lbl">Volume</div></div>
     </div>
     ${(s.kneePain && (s.kneePain.before!==null||s.kneePain.after!==null||s.kneePain.nextMorning!==null)) ? `
       <div class="divider"></div>
@@ -1529,8 +1701,9 @@ function openSessionDetail(sid){
 function logNutrition(){
   const cal = document.getElementById('calInput');
   const pro = document.getElementById('proInput');
-  const calVal = cal && cal.value ? parseInt(cal.value) : null;
-  const proVal = pro && pro.value ? parseInt(pro.value) : null;
+  const calVal = cal && cal.value ? Number(cal.value) : null;
+  const proVal = pro && pro.value ? Number(pro.value) : null;
+  if([calVal,proVal].some(v=>v!==null && (!Number.isFinite(v) || v<0))){ alert('Enter non-negative calories and protein.'); return; }
   if(calVal===null && proVal===null) return;
   const today = todayISO();
   let entry = DATA.nutrition.find(n=>n.date===today);
@@ -1543,7 +1716,8 @@ function logNutrition(){
 function logBodyweight(){
   const inp = document.getElementById('bwInput');
   if(!inp || !inp.value) return;
-  const val = parseFloat(inp.value);
+  const val = Number(inp.value);
+  if(!Number.isFinite(val) || val<=0){ alert('Enter a positive bodyweight.'); return; }
   const today = todayISO();
   let entry = DATA.bodyweight.find(b=>b.date===today);
   if(!entry){ entry={date:today,weight:val}; DATA.bodyweight.push(entry); }
@@ -1553,33 +1727,34 @@ function logBodyweight(){
 }
 
 /* ---------- export/import ---------- */
+function downloadJSON(content,name){
+  const url=URL.createObjectURL(new Blob([content],{type:'application/json'}));
+  const a=document.createElement('a');
+  a.href=url; a.download=name;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(()=>URL.revokeObjectURL(url),1000);
+}
 function exportData(){
-  const blob = new Blob([JSON.stringify(DATA,null,2)], {type:'application/json'});
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = `hypertrophy-tracker-${todayISO()}.json`;
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
-  URL.revokeObjectURL(url);
+  downloadJSON(JSON.stringify(DATA,null,2),'hypertrophy-tracker-'+todayISO()+'.json');
 }
 function importData(e){
-  const file = e.target.files[0];
+  const file=e.target.files[0];
   if(!file) return;
-  const reader = new FileReader();
-  reader.onload = (ev)=>{
+  const reader=new FileReader();
+  reader.onload=ev=>{
     try{
-      const parsed = JSON.parse(ev.target.result);
+      const parsed=validateData(JSON.parse(ev.target.result));
       if(!confirm('Import will replace your current data. Continue?')) return;
-      DATA = Object.assign(defaultData(), parsed);
-      save();
-      renderTab();
-      alert('Data imported.');
-    }catch(err){
-      alert('Could not read that file.');
-    }
+      parsed.restEndAt=null;
+      if(!commitData(parsed,true)) return;
+      deletedWorkout=null;
+      document.getElementById('undoPanel').hidden=true;
+      stopRestTimer(false); closeModal(); renderTab();
+      alert('Data imported and saved.');
+    }catch(err){ alert('Could not import: '+err.message); }
+    finally{ e.target.value=''; }
   };
+  reader.onerror=()=>alert('Could not read that file. Your current data has not changed.');
   reader.readAsText(file);
 }
 
@@ -1602,69 +1777,122 @@ function escapeHtml(str){
   return String(str).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 }
 
-/* ============================= INIT ============================= */
-setTab('home');
 
+function deleteWorkout(sid){
+  const index=DATA.sessions.findIndex(s=>String(s.id)===String(sid));
+  if(index<0) return;
+  const session=DATA.sessions[index];
+  if(!confirm('Delete '+session.dayName+' — '+fmtDate(session.date)+'? You can undo this deletion until you reload.')) return;
+  const pending=DATA.pendingNextMorning && String(DATA.pendingNextMorning.sessionId)===String(sid)?DATA.pendingNextMorning:null;
+  const candidate={...DATA,sessions:DATA.sessions.filter((s,i)=>i!==index),
+    pendingNextMorning:pending?null:DATA.pendingNextMorning};
+  if(!commitData(candidate)) return;
+  deletedWorkout={session,index,pending};
+  document.getElementById('undoPanel').hidden=false;
+  renderTab();
+}
+function undoDeleteWorkout(){
+  if(!deletedWorkout) return;
+  const {session,index,pending}=deletedWorkout;
+  if(DATA.sessions.some(s=>String(s.id)===String(session.id))) return;
+  const sessions=DATA.sessions.slice();
+  sessions.splice(Math.min(index,sessions.length),0,session);
+  const candidate={...DATA,sessions,pendingNextMorning:DATA.pendingNextMorning||pending};
+  if(!commitData(candidate)) return;
+  deletedWorkout=null;
+  document.getElementById('undoPanel').hidden=true;
+  renderTab();
+}
 
-/* DELETE WORKOUT FEATURE */
+/* EXPLICIT WEIGHT COACHING FIX */
 (function(){
-  function getData(){
-    try{return JSON.parse(localStorage.getItem(STORAGE_KEY) || 'null') || DATA;}catch(e){return DATA;}
-  }
-  function saveData(data){
-    try{localStorage.setItem(STORAGE_KEY, JSON.stringify(data));}catch(e){console.error('Could not save workout deletion',e);}
-  }
-  function sessionLabel(session){
-    const name = session.name || session.workoutName || session.programName || session.dayName || 'Workout';
-    let date = session.date || session.startedAt || session.createdAt || '';
-    if(date){
-      const d = new Date(date);
-      if(!Number.isNaN(d.getTime())) date = d.toLocaleDateString(undefined,{day:'numeric',month:'short',year:'numeric'});
+  const originalComputeRecommendation = window.computeRecommendation || computeRecommendation;
+  window.computeRecommendation = function(exDef, lastLog){
+    const rec = originalComputeRecommendation(exDef, lastLog);
+    if(!rec) return rec;
+
+    // The coach must always answer the two progressive-overload questions:
+    // 1) What did I do last time?
+    // 2) What exactly should I do today?
+    const completed = lastLog && lastLog.sets ? lastLog.sets.filter(s =>
+      s.completed && Number(s.weight) > 0 && Number(s.reps) > 0
+    ) : [];
+
+    if(completed.length){
+      const lastPerformance = completed.map(s => `${Number(s.weight)}kg × ${Number(s.reps)}`).join('  |  ');
+      const lastWeight = Number(completed[0].weight);
+      const lastReps = completed.map(s => Number(s.reps));
+      const lastTotal = lastReps.reduce((a,b)=>a+b,0);
+      const recommendedWeight = rec.nextWeight !== null && rec.nextWeight !== undefined
+        ? Number(rec.nextWeight)
+        : lastWeight;
+      const targetReps = rec.targetReps || `${exDef.repMin}–${exDef.repMax}`;
+
+      if(rec.nextWeight !== null && rec.nextWeight !== undefined && Number(rec.nextWeight) > 0){
+        if(rec.type === 'maintain'){
+          rec.text = `TODAY: ${recommendedWeight} KG × ${targetReps} REPS — HOLD WEIGHT`;
+        }else if(rec.type === 'up'){
+          rec.text = `TODAY: ${recommendedWeight} KG × ${targetReps} REPS — INCREASE LOAD`;
+        }else if(rec.type === 'down'){
+          rec.text = `TODAY: ${recommendedWeight} KG × ${targetReps} REPS — REDUCE LOAD`;
+        }else{
+          rec.text = `TODAY: ${recommendedWeight} KG × ${targetReps} REPS — BEAT LAST TIME`;
+        }
+      }else{
+        rec.text = `TODAY: ${lastWeight} KG × ${targetReps} REPS — BEAT LAST TIME`;
+      }
+
+      rec.detail = `LAST TIME: ${lastPerformance} (${lastTotal} total reps).  TODAY: ${recommendedWeight} KG × ${targetReps} REPS. ${rec.detail || ''}`.trim();
+    }else{
+      rec.text = `TODAY: CHOOSE A WEIGHT × ${rec.targetReps || `${exDef.repMin}–${exDef.repMax}`} REPS`;
+      rec.detail = `No completed previous working sets are available. Choose a load that allows the target reps with good technique. ${rec.detail || ''}`.trim();
     }
-    return {name,date:String(date || '')};
-  }
-  function deleteWorkout(index){
-    const data = getData();
-    if(!data || !Array.isArray(data.sessions) || !data.sessions[index]) return;
-    const info = sessionLabel(data.sessions[index]);
-    const ok = window.confirm(`Delete ${info.name}${info.date ? ' — '+info.date : ''}?\n\nThis removes the completed workout from History, Progress graphs, PR calculations and future coaching comparisons. Your programme and exercises will not be deleted.`);
-    if(!ok) return;
-    data.sessions.splice(index,1);
-    saveData(data);
-    location.reload();
-  }
-  window.deleteWorkoutFromHistory = deleteWorkout;
+    return rec;
+  };
 
-  function injectDeleteCard(){
-    const content = document.getElementById('content');
-    if(!content || content.querySelector('#deleteWorkoutCard')) return;
-    const historyItems = content.querySelector('.hist-item');
-    const activeHistory = document.querySelector('#navbar button[data-tab="history"].active');
-    if(!activeHistory && !historyItems) return;
-
-    const data = getData();
-    const sessions = data && Array.isArray(data.sessions) ? data.sessions : [];
-    const card = document.createElement('div');
-    card.id = 'deleteWorkoutCard';
-    card.className = 'delete-workout-card';
-    const rows = sessions.map((session,index)=>({session,index, ...sessionLabel(session)})).sort((a,b)=>{
-      const da = new Date(a.session.date || a.session.startedAt || a.session.createdAt || 0).getTime();
-      const db = new Date(b.session.date || b.session.startedAt || b.session.createdAt || 0).getTime();
-      return db-da;
-    });
-    card.innerHTML = `<h3>Manage completed workouts</h3><div class="delete-sub">Delete an individual workout if you logged it by mistake. This does not change your programme.</div>` +
-      (rows.length ? rows.map(r=>`<div class="delete-workout-row"><div class="delete-workout-info"><div class="delete-workout-name">${escapeHtml(r.name)}</div><div class="delete-workout-date">${escapeHtml(r.date)}</div></div><button class="delete-workout-btn" data-delete-index="${r.index}">Delete</button></div>`).join('') : '<div class="empty">No completed workouts to delete.</div>');
-    content.prepend(card);
-    card.querySelectorAll('[data-delete-index]').forEach(btn=>btn.addEventListener('click',()=>deleteWorkout(Number(btn.dataset.deleteIndex))));
-  }
-  function escapeHtml(v){return String(v).replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));}
-
-  const observer = new MutationObserver(()=>setTimeout(injectDeleteCard,0));
-  const content = document.getElementById('content');
-  if(content) observer.observe(content,{childList:true,subtree:true});
-  document.querySelectorAll('#navbar button[data-tab="history"]').forEach(btn=>btn.addEventListener('click',()=>setTimeout(injectDeleteCard,80)));
-  setTimeout(injectDeleteCard,100);
+  const css = document.createElement('style');
+  css.textContent = `
+    .reco-coach .coach-main{font-size:20px;font-weight:900;line-height:1.25;}
+    .reco-coach .coach-detail{font-size:12.5px;line-height:1.5;}
+  `;
+  document.head.appendChild(css);
 })();
+
+/* ============================= INIT ============================= */
+document.getElementById('updateApp').onclick=()=>{
+  if(!availableBuild || !save()) return;
+  const url=new URL(location.href);
+  url.searchParams.set('v',availableBuild);
+  location.replace(url.href);
+};
+window.addEventListener('pageshow',checkForUpdate);
+document.addEventListener('visibilitychange',()=>{
+  if(document.visibilityState==='visible') checkForUpdate();
+});
+checkForUpdate();
+document.getElementById('retrySave').onclick=()=>save();
+document.getElementById('exportRecovery').onclick=exportRecovery;
+document.getElementById('undoDelete').onclick=undoDeleteWorkout;
+window.addEventListener('beforeunload',event=>{
+  if(!unsavedChanges) return;
+  event.preventDefault(); event.returnValue='';
+});
+window.addEventListener('storage',event=>{
+  if(event.key===STORAGE_KEY || event.key===null){
+    updateSaveStatus('Data changed in another tab. Export your current data in More, then reload before continuing.',true);
+  }
+});
+updateSaveStatus(saveMessage || (DATA.activeSession?'Session recovered — continue in Train':'Saved on this device'),storageBlocked);
+setTab(DATA.activeSession?'train':'home');
+if(DATA.activeSession && typeof DATA.restEndAt==='number' && DATA.restEndAt>Date.now()){
+  restTimerState.endAt=DATA.restEndAt;
+  restTimerState.running=true;
+  document.getElementById('resttimer').classList.add('show');
+  updateRestTimerFromClock();
+  restTimerState.interval=setInterval(updateRestTimerFromClock,250);
+}
+
+
 
 </script>
 </body>
