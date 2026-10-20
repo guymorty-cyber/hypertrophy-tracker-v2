@@ -1,69 +1,58 @@
-name: Deploy Hypertrophy Tracker
+name: Test and deploy Hypertrophy Tracker
 
 on:
   push:
     branches: [main]
+  pull_request:
+    branches: [main]
   workflow_dispatch:
 
 permissions:
-  contents: write
-  pages: write
-  id-token: write
+  contents: read
 
 jobs:
-  deploy:
+  check:
     runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Check persistence and workout behaviour
+        run: node tests/regression.cjs
+      - name: Install browser test tools
+        run: |
+          npm install --no-save --package-lock=false playwright@1.56.1
+          npx playwright install --with-deps chromium webkit
+      - name: Test mobile workout flow in Chromium and WebKit
+        run: node tests/browser-smoke.mjs
+      - name: Package Pages
+        run: python scripts/build_pages.py
+      - name: Upload Pages artifact
+        if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+        uses: actions/upload-pages-artifact@v4
+        with:
+          path: dist
+          name: hypertrophy-pages-${{ github.run_id }}-${{ github.run_attempt }}
+
+  deploy:
+    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+    needs: check
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    concurrency:
+      group: github-pages
+      cancel-in-progress: false
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
-      - name: Checkout
-        uses: actions/checkout@v6
-
-      - name: Apply final rest-day UI fix
-        run: python scripts/fix_rest.py
-
-      - name: Apply Phase 1 coaching UI
-        run: python scripts/phase1_coaching.py
-
-      - name: Apply Phase 2 hypertrophy coaching engine
-        run: |
-          if grep -q "recommendation engine — Phase 2 hypertrophy-specific progression" index.html; then
-            echo "Phase 2 coaching already applied"
-          else
-            python scripts/phase2_coaching.py
-          fi
-
-      - name: Apply delete workout feature
-        run: |
-          if grep -q "DELETE WORKOUT FEATURE" index.html; then
-            echo "Delete workout feature already applied"
-          else
-            python scripts/delete_workout.py
-          fi
-
-      - name: Fix History delete UI
-        run: python scripts/fix_history_delete.py
-
-      - name: Apply explicit weight coaching fix
-        run: python scripts/weight_coaching_fix.py
-
-      - name: Apply background-safe rest timer fix
-        run: python scripts/background_timer_fix.py
-
       - name: Setup Pages
         uses: actions/configure-pages@v5
-
-      - name: Upload artifact
-        uses: actions/upload-pages-artifact@v4
-        with:
-          path: .
-          name: hypertrophy-pages-${{ github.run_id }}
-
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v4
         with:
-          artifact_name: hypertrophy-pages-${{ github.run_id }}
-
-      # Force a fresh deployment after the Pages artifact-name collision fix.
+          artifact_name: hypertrophy-pages-${{ github.run_id }}-${{ github.run_attempt }}
