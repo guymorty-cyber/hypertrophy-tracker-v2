@@ -13,27 +13,30 @@ function validateData(value){
   const id = v=>(text(v) && v.length>0) || (typeof v==='number' && Number.isFinite(v));
   const number = v=>typeof v==='number' && Number.isFinite(v) && v>=0;
   const date = v=>text(v) && /^\d{4}-\d{2}-\d{2}$/.test(v) && !Number.isNaN(Date.parse(v+'T00:00:00')) && new Date(v+'T00:00:00Z').toISOString().slice(0,10)===v;
-  const unique = rows=>new Set(rows.map(r=>String(r.id))).size===rows.length;
+  const unique = rows=>rows.every(object) && new Set(rows.map(r=>String(r.id))).size===rows.length;
   if(!object(value) || !Array.isArray(value.program) || !value.program.length ||
      !Array.isArray(value.sessions) || !Array.isArray(value.bodyweight) ||
      !Array.isArray(value.nutrition) || !date(value.programStartDate)) fail();
   if(!unique(value.program) || !unique(value.sessions)) fail();
-  const validateExercise = ex=>{
-    if(!object(ex) || !id(ex.id) || !/^[\w-]+$/.test(String(ex.id)) || !text(ex.name) || !Number.isInteger(ex.sets) ||
-         ex.sets<1 || ex.sets>100 || !number(ex.repMin) || !number(ex.repMax) ||
+  const validateExercise = (ex,live=false)=>{
+    if(!object(ex) || !id(ex.id) || (live && !text(ex.id)) || !/^[\w-]+$/.test(String(ex.id)) || !text(ex.name) || !Number.isInteger(ex.sets) ||
+         ex.sets<1 || ex.sets>100 || !Number.isInteger(ex.repMin) || ex.repMin<1 || !Number.isInteger(ex.repMax) ||
          ex.repMin>ex.repMax || !number(ex.restSec) || !number(ex.inc)) fail();
+    if(ex.currentDisplay!==undefined && ex.currentDisplay!==null && !text(ex.currentDisplay))fail();
     if(ex.rirTarget!==undefined && ex.rirTarget!==null && (!Number.isInteger(ex.rirTarget) || ex.rirTarget<0 || ex.rirTarget>5)) fail();
     if(ex.tempo!==undefined && (!text(ex.tempo) || ex.tempo.length>80)) fail();
     if(ex.alts!==undefined && (!Array.isArray(ex.alts) || ex.alts.some(v=>!text(v)))) fail();
   };
   for(const day of value.program){
-    if(!object(day) || !id(day.id) || !text(day.name) ||
+    if(!object(day) || !text(day.id) || !text(day.name) ||
        !['training','rest'].includes(day.type) || !Array.isArray(day.exercises)) fail();
     if(!unique(day.exercises) || !/^[\w-]+$/.test(String(day.id))) fail();
     for(const ex of day.exercises){
-      validateExercise(ex);
+      validateExercise(ex,true);
     }
   }
+  const programmeIds=value.program.flatMap(day=>day.exercises.map(ex=>String(ex.id)));
+  if(new Set(programmeIds).size!==programmeIds.length)fail();
   const normalizeSession = s=>{
     if(!object(s) || !id(s.id) || !id(s.dayId) || !text(s.dayName) ||
        !date(s.date) || !number(s.startedAt) || !Array.isArray(s.exercises)) fail();
@@ -60,6 +63,8 @@ function validateData(value){
   if(activeSession && (!value.program.some(d=>d.id===activeSession.dayId) ||
       sessions.some(s=>String(s.id)===String(activeSession.id)))) fail();
   if(activeSession){
+    const exerciseIds=activeSession.exercises.map(ex=>String(ex.exerciseId));
+    if(new Set(exerciseIds).size!==exerciseIds.length || activeSession.exercises.some(ex=>!text(ex.exerciseId)))fail();
     const day=value.program.find(d=>d.id===activeSession.dayId);
     activeSession.isLower=activeSession.isLower ?? !!day.isLower;
     activeSession.exercises=activeSession.exercises.map(e=>{
@@ -75,9 +80,9 @@ function validateData(value){
       ![p.showBodyweight,p.showNutrition,p.showCoaching].every(v=>typeof v==='boolean') ||
       (p.weeklyGoal!==null && (!Number.isInteger(p.weeklyGoal) || p.weeklyGoal<1 || p.weeklyGoal>14)))fail();
   }
-  const pending = value.pendingNextMorning;
+  const pending=value.pendingNextMorning,source=pending && sessions.find(s=>String(s.id)===String(pending.sessionId));
   return {...defaultData(),...value,sessions,activeSession,
-    pendingNextMorning:pending && sessions.some(s=>String(s.id)===String(pending.sessionId))?pending:null};
+    pendingNextMorning:source?{...pending,sessionId:source.id,date:source.date,dayName:source.dayName}:null};
 }
 
 function updateSaveStatus(message, error=false){
@@ -93,7 +98,7 @@ function load(){
   try{
     const raw = localStorage.getItem(STORAGE_KEY);
     lastStoredRaw = raw;
-    if(!raw) return defaultData();
+    if(raw===null) return defaultData();
     recoveryRaw = raw;
     return validateData(JSON.parse(raw));
   }catch(e){
@@ -110,7 +115,7 @@ function persist(candidate, replaceDamaged=false){
     if(current!==lastStoredRaw) throw new Error('Data changed in another tab. Export your current data in More, then reload before continuing.');
     const serialized = JSON.stringify(validateData(candidate));
     // Preserve the previous valid snapshot. A full store must not prevent saving.
-    if(current){
+    if(current && current!==serialized){
       try{ validateData(JSON.parse(current)); localStorage.setItem(BACKUP_KEY,current); }catch(e){}
     }
     localStorage.setItem(STORAGE_KEY,serialized);
@@ -147,7 +152,7 @@ function restoreBackup(){
   }catch(e){ alert('The saved snapshot could not be restored: '+e.message); }
 }
 function exportRecovery(){
-  downloadJSON(recoveryRaw || lastStoredRaw || '{}','hypertrophy-recovery-'+todayISO()+'.json');
+  downloadJSON(recoveryRaw ?? lastStoredRaw ?? '{}','hypertrophy-recovery-'+todayISO()+'.json');
 }
 
 let DATA = load();

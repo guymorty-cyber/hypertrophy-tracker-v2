@@ -1,14 +1,24 @@
-function startRestTimer(sec){
+function activateRestTimer(deadline,sec){
   stopRestTimer(false);
-  restTimerState.total = sec;
-  restTimerState.remaining = sec;
-  restTimerState.endAt = Date.now() + (sec * 1000);
-  restTimerState.running = true;
+  restTimerState.total=sec;
+  restTimerState.remaining=Math.max(0,Math.ceil((deadline-Date.now())/1000));
+  restTimerState.endAt=deadline;
+  restTimerState.running=true;
   document.getElementById('resttimer').classList.add('show');
-  DATA.restEndAt=restTimerState.endAt;
-  save();
   updateRestDisplay();
-  restTimerState.interval = setInterval(updateRestTimerFromClock, 250);
+  restTimerState.interval=setInterval(updateRestTimerFromClock,250);
+}
+function startRestTimer(sec){
+  if(!Number.isFinite(sec) || sec<0)return false;
+  const deadline=Date.now()+sec*1000;
+  if(!Number.isFinite(deadline) || !commitData({...DATA,restEndAt:deadline}))return false;
+  activateRestTimer(deadline,sec);return true;
+}
+function extendRestTimer(){
+  if(!restTimerState.running)return false;
+  const deadline=restTimerState.endAt+30000;
+  if(!commitData({...DATA,restEndAt:deadline}))return false;
+  restTimerState.endAt=deadline;updateRestTimerFromClock();return true;
 }
 function updateRestTimerFromClock(){
   if(!restTimerState.running || !restTimerState.endAt) return;
@@ -16,17 +26,19 @@ function updateRestTimerFromClock(){
   updateRestDisplay();
   if(restTimerState.remaining <= 0){
     const wasRunning = restTimerState.running;
-    stopRestTimer();
+    // An expired deadline cannot restart on reopening, even if cleanup cannot save.
+    if(!stopRestTimer())stopRestTimer(false);
     if(wasRunning && navigator.vibrate) navigator.vibrate([200,100,200]);
   }
 }
 function stopRestTimer(persistTimer=true){
+  if(persistTimer && DATA.restEndAt && !commitData({...DATA,restEndAt:null}))return false;
   if(restTimerState.interval) clearInterval(restTimerState.interval);
   restTimerState.interval = null;
   restTimerState.running = false;
   restTimerState.endAt = null;
-  if(persistTimer && DATA.restEndAt){ DATA.restEndAt=null; save(); }
   document.getElementById('resttimer').classList.remove('show');
+  return true;
 }
 
 document.addEventListener('visibilitychange', ()=>{
@@ -39,5 +51,5 @@ function updateRestDisplay(){
   const s = Math.max(0,restTimerState.remaining)%60;
   document.getElementById('rtTime').textContent = `${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
 }
-document.getElementById('rtAdd30').onclick = ()=>{ if(restTimerState.running){ restTimerState.endAt+=30000; DATA.restEndAt=restTimerState.endAt; save(); updateRestTimerFromClock(); } };
+document.getElementById('rtAdd30').onclick=extendRestTimer;
 document.getElementById('rtSkip').onclick = ()=> stopRestTimer();

@@ -28,11 +28,12 @@ function getPhase(weekNum){
   return PHASES[0];
 }
 function getNextProgramIndex(){
-  if(!DATA.sessions.length){
+  const completed=DATA.sessions.filter(s=>s.date<=todayISO());
+  if(!completed.length){
     const first = DATA.program.findIndex(d=>d.type==='training');
     return first>=0 ? first : 0;
   }
-  const sessions = DATA.sessions.slice().sort((a,b)=>{
+  const sessions = completed.slice().sort((a,b)=>{
     const dc = String(a.date||'').localeCompare(String(b.date||''));
     if(dc!==0) return dc;
     return Number(a.startedAt||0)-Number(b.startedAt||0);
@@ -80,7 +81,7 @@ function usablePreviousSet(set){
 }
 function lastSessionFor(exId, displayName=null){
   // Date alone cannot distinguish two workouts logged on the same day.
-  const sessions=DATA.sessions.slice().sort((a,b)=>
+  const sessions=DATA.sessions.filter(s=>s.date<=todayISO()).sort((a,b)=>
     a.date.localeCompare(b.date) || (a.startedAt||0)-(b.startedAt||0));
   for(let i=sessions.length-1;i>=0;i--){
     const session=sessions[i];
