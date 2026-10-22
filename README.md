@@ -42,6 +42,7 @@ node tests/programme.cjs
 node tests/adaptive.cjs
 node tests/dashboard.cjs
 node tests/mobile.cjs
+node tests/reliability.cjs
 npm install --no-save --package-lock=false playwright@1.56.1
 npx playwright install --with-deps chromium webkit
 node tests/browser-smoke.mjs
@@ -53,6 +54,7 @@ node tests/programme-browser.mjs
 node tests/adaptive-browser.mjs
 node tests/dashboard-browser.mjs
 node tests/mobile-browser.mjs
+node tests/reliability-browser.mjs
 node tests/pwa.mjs
 python -m http.server --directory dist 8080
 ```
@@ -84,3 +86,5 @@ Phase 6 adds explainable checks for comparable-workout stalls/declines plus opti
 Phase 7 adds a personalised Home with active-workout continuation, a Monday–Sunday training summary, an optional weekly goal, configurable summary cards, evidence-based training priorities and working quick logging links. Progress now shares charts and records for the same exercise name across days (ignoring case and whitespace). Different movement names stay separate. Each day retains its own prescription and coaching target. Saved history and IDs are not migrated or renamed.
 
 Phase 8 improves phone input sizes and touch targets, allows pinch zoom, adds Previous/Next/Done entry controls and fits dialogs above the on-screen keyboard. Input navigation never checks a set or changes training data. More → App & offline reports launch mode, offline readiness and the current release, with a bounded manual update check. Installation help recognises an existing Home Screen app and explains exporting/importing when moving between Safari and an installed app. Automated Chromium/WebKit tests cover these paths; the actual iPhone keyboard, Share sheet, Home Screen launch and OS backgrounding still require an on-device check.
+
+Phase 9 makes set completion and its rest deadline a single saved transition, rolls back failed timer actions, preserves a meaningful previous snapshot across unchanged saves, and prevents superseded or stale asynchronous imports from replacing data. Ordinary Export uses the original recovery bytes when stored data cannot be read. Validation rejects duplicate live slot IDs and fractional rep prescriptions while retaining historical repeated movements. Future-dated history remains editable but does not drive today’s coaching or workout sequence. See RELIABILITY.md for the audit, acceptance evidence and limits.

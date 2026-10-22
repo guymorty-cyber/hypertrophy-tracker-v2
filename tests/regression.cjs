@@ -4,7 +4,7 @@ const path=require('node:path');
 
 function boot(script, initial={}){
   const elements=new Map(),records=new Map(Object.entries(initial)),listeners={};
-  const state={writeFailure:false,readFailure:false,confirm:true,alerts:[],clock:Date.parse('2026-10-20T12:00:00Z')};
+  const state={readers:[],deferReads:false,writes:[],downloads:[],writeFailure:false,readFailure:false,confirm:true,alerts:[],clock:Date.parse('2026-10-20T12:00:00Z')};
   let uuid=0;
   function element(id){
     if(!elements.has(id)) elements.set(id,{id,value:'',textContent:'',innerHTML:'',hidden:false,dataset:{},
@@ -17,16 +17,16 @@ function boot(script, initial={}){
     addEventListener(type,fn){listeners[type]=fn;},visibilityState:'visible'};
   const window={scrollTo(){},addEventListener(type,fn){listeners[type]=fn;}};
   const localStorage={getItem(k){if(state.readFailure)throw Error('Storage unavailable');return records.get(k)??null;},
-    setItem(k,v){if(state.writeFailure){const e=Error('full');e.name='QuotaExceededError';throw e;}records.set(k,String(v));},
+    setItem(k,v){if(state.writeFailure || state.writeFailureKey===k){const e=Error('full');e.name='QuotaExceededError';throw e;}records.set(k,String(v));state.writes.push(k);},
     removeItem(k){records.delete(k);}};
   class Clock extends Date{constructor(...args){super(...(args.length?args:[state.clock]));} static now(){return state.clock;}}
-  class Reader{readAsText(file){this.onload({target:{result:file.content}});}}
+  class Reader{readAsText(file){if(state.deferReads)state.readers.push({reader:this,file});else this.onload({target:{result:file.content}});}}
   const prefix="Object.defineProperty(window,'computeRecommendation',{get:()=>computeRecommendation,set:v=>computeRecommendation=v});\n";
-  const suffix="\nreturn {get data(){return DATA;},set data(v){DATA=v;},get blocked(){return storageBlocked;},get unsaved(){return unsavedChanges;},get timer(){return restTimerState;},get tab(){return currentTab;},defaultData,validateData,save,commitData,load,restoreBackup,deleteWorkout,undoDeleteWorkout,startSession,startRestDay,logRestDay,updateSetField,toggleSetComplete,finishWorkoutFlow,startRestTimer,updateRestTimerFromClock,stopRestTimer,attachTabEvents,importData,renderHistory,renderActiveSession,computeRecommendation,getCoachingPrescription,getWeekNumber,lastSessionFor,addWorkoutSet,removeWorkoutSet,useLastSession,swapWorkoutExercise,openExerciseEditModal,rebuildHistory,saveHistoryEdit,openHistoryEditor,openSessionDetail,set historyQuery(value){historyFilterQuery=value;},progressExercises,exerciseProgress,weeklyTraining,dailyBodyweight,weeklyBodyweight,bodyweightWeeklyRate,progressCutoff,renderProgress,renderSparkline,getPRFor,allExercisePRs,set progressRange(value){progressRange=value;},set progressSelection(value){selectedProgressExId=value;},set progressSearch(value){exerciseFilterQuery=value;},moveProgrammeDay,duplicateProgrammeDay,deleteProgrammeDay,saveProgrammeDay,moveProgrammeExercise,deleteProgrammeExercise,duplicateProgrammeExercise,saveProgrammeExercise,openProgrammeDayModal,renderDayEditor,setWorkoutReadiness,setExerciseEffort,coachingEvidence,movementKey,renderHome,dashboardPreferences,dashboardSummary,saveDashboardPreferences,renderDashboardCoaching,logNutrition,logBodyweight,keyboardInset,isEntryField,entryDescription,installedApp,appUpdateMessage,renderAppExperience,checkAppStatus};";
+  const suffix="\nreturn {get data(){return DATA;},set data(v){DATA=v;},get blocked(){return storageBlocked;},get unsaved(){return unsavedChanges;},get timer(){return restTimerState;},get tab(){return currentTab;},defaultData,validateData,save,commitData,load,restoreBackup,deleteWorkout,undoDeleteWorkout,startSession,startRestDay,logRestDay,updateSetField,toggleSetComplete,finishWorkoutFlow,startRestTimer,updateRestTimerFromClock,stopRestTimer,attachTabEvents,importData,renderHistory,renderActiveSession,computeRecommendation,getCoachingPrescription,getWeekNumber,lastSessionFor,addWorkoutSet,removeWorkoutSet,useLastSession,swapWorkoutExercise,openExerciseEditModal,rebuildHistory,saveHistoryEdit,openHistoryEditor,openSessionDetail,set historyQuery(value){historyFilterQuery=value;},progressExercises,exerciseProgress,weeklyTraining,dailyBodyweight,weeklyBodyweight,bodyweightWeeklyRate,progressCutoff,renderProgress,renderSparkline,getPRFor,allExercisePRs,set progressRange(value){progressRange=value;},set progressSelection(value){selectedProgressExId=value;},set progressSearch(value){exerciseFilterQuery=value;},moveProgrammeDay,duplicateProgrammeDay,deleteProgrammeDay,saveProgrammeDay,moveProgrammeExercise,deleteProgrammeExercise,duplicateProgrammeExercise,saveProgrammeExercise,openProgrammeDayModal,renderDayEditor,setWorkoutReadiness,setExerciseEffort,coachingEvidence,movementKey,renderHome,dashboardPreferences,dashboardSummary,saveDashboardPreferences,renderDashboardCoaching,logNutrition,logBodyweight,keyboardInset,isEntryField,entryDescription,installedApp,appUpdateMessage,renderAppExperience,checkAppStatus,extendRestTimer,exportData,getNextProgramIndex};";
   const app=new Function('document','window','localStorage','alert','confirm','navigator','setInterval','clearInterval',
     'setTimeout','Date','crypto','FileReader','Blob','URL',prefix+script+suffix)(
     document,window,localStorage,m=>state.alerts.push(m),()=>state.confirm,{vibrate(){}},()=>1,()=>{},()=>1,Clock,
-    {randomUUID:()=>String(++uuid)},Reader,globalThis.Blob||function(){},{createObjectURL:()=>'',revokeObjectURL(){}});
+    {randomUUID:()=>String(++uuid)},Reader,globalThis.Blob||function(){},{createObjectURL:blob=>{state.downloads.push(blob);return '';},revokeObjectURL(){}});
   return {app,state,records,document,elements,listeners,element};
 }
 

@@ -164,9 +164,10 @@ function toggleSetComplete(exId, setIdx, checked){
     alert('Enter the weight (0 for bodyweight) and reps before completing this set.');
     renderTab(); return;
   }
-  set.completed=checked;
-  const saved=save();
-  if(checked && saved && ex) startRestTimer(ex.restSec);
+  const activeSession=JSON.parse(JSON.stringify(DATA.activeSession));
+  activeSession.exercises.find(e=>e.exerciseId===exId).sets[setIdx].completed=checked;
+  const deadline=checked && ex?Date.now()+ex.restSec*1000:DATA.restEndAt;
+  if(commitData({...DATA,activeSession,restEndAt:deadline}) && checked && ex)activateRestTimer(deadline,ex.restSec);
   renderTab();
 }
 function setWorkoutReadiness(value){

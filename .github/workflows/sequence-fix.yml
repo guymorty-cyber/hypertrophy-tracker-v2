@@ -31,6 +31,7 @@ jobs:
           node tests/adaptive.cjs
           node tests/dashboard.cjs
           node tests/mobile.cjs
+          node tests/reliability.cjs
       - name: Install browser test tools
         timeout-minutes: 5
         run: |
@@ -41,6 +42,7 @@ jobs:
       - name: Package Pages
         run: python scripts/build_pages.py
       - name: Test mobile workouts, offline loading and updates
+        timeout-minutes: 5
         run: |
           node tests/browser-smoke.mjs
           node tests/coaching-browser.mjs
@@ -51,6 +53,7 @@ jobs:
           node tests/adaptive-browser.mjs
           node tests/dashboard-browser.mjs
           node tests/mobile-browser.mjs
+          node tests/reliability-browser.mjs
           node tests/pwa.mjs
       - name: Upload Pages artifact
         if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
