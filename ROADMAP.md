@@ -10,7 +10,7 @@ The original ten-phase roadmap remains the organising plan. Work already shipped
 | 4. Progress & analytics | Weight/reps/volume/strength trends, PRs, bodyweight and charts | Implemented with workout-level comparisons, chart/range controls, weekly training and bodyweight acceptance checks in this release |
 | 5. Programme builder | Custom exercises/days, sets, rep ranges, increments, RIR/tempo and programme structure | Builder implemented with day/exercise and effort/tempo acceptance checks; personal exercise-plan reconciliation remains |
 | 6. Advanced coaching | Adapt recommendations to logged performance and recovery | Implemented with explicit performance/effort/readiness rules and acceptance checks in this release |
-| 7. Dashboard & personalisation | Tailored overview and training priorities | Existing dashboard; full phase acceptance remains |
+| 7. Dashboard & personalisation | Tailored overview and training priorities | Implemented with personalised Home, shared-movement analytics and dashboard acceptance checks |
 | 8. PWA / iPhone experience | Installation, offline loading and phone experience | PWA baseline shipped; real iPhone Home Screen check remains |
 | 9. Reliability & testing | Persistence, recovery, coaching, migration, deployment and mobile checks | Ongoing across releases; broader acceptance remains |
 | 10. Future expansion | Potential accounts, cloud sync and further features | Deferred |
@@ -67,7 +67,7 @@ The engine implements transparent programme rules. It does not claim to measure 
 ## Phase 5 builder acceptance evidence
 
 - More → Programme Builder creates, renames, copies, reorders and removes training/rest days. Day selection follows the selected ID across reordering. At least one day is retained, and an active workout's day cannot be removed.
-- Exercise controls add, edit, copy, reorder and remove definitions. Copies receive new IDs; they do not inherit historical performance. Removing a definition preserves active snapshots, History and archived Progress records.
+- Exercise controls add, edit, copy, reorder and remove definitions. Copies receive new slot IDs; Phase 7 shares movement records when their names match, while coaching prescriptions remain per slot. Removing a definition preserves active snapshots, History and archived Progress records.
 - Strict numeric entry rejects empty/fractional set or rep counts, invalid ranges and invalid rest/increment values. Zero rest/increments and fractional weight increments are preserved.
 - Category, optional 0–5 RIR, tempo, per-leg reps, alternatives and notes are editable. Blank RIR retains phase defaults; explicit RIR reaches new-session coaching, including approximate RPE. Deload retains 3–4 RIR and disables failure-based partial cues. Existing optional partial cues remain subject to Peak/isolation/effort conditions.
 - New workouts snapshot these settings; edits do not rename or truncate active or historical sets. Tempo is shown in Train, and imported backups validate optional RIR/tempo fields.
@@ -86,3 +86,13 @@ The engine implements transparent programme rules. It does not claim to measure 
 - Readiness/RIR save with the active session, recover after reopening, appear in History details, and can be corrected in the History editor. Corrections and deletion/Undo immediately affect evidence. Export/import retains optional feedback; older data loads without inferred entries or an immediate storage rewrite.
 - Failed feedback saves roll back the visible control to the saved value; full storage and stale-tab guards remain in force. Revised action text removes an obsolete increase explanation whenever a hold/reduction overrides it.
 - `tests/adaptive.cjs` adds fifteen checks. `tests/adaptive-browser.mjs` checks stall explanations, readiness, gated effort entry, storage-full rollback, reopening, next-workout adaptation and a History feedback correction in Chromium/WebKit. Earlier phase and PWA suites remain required.
+
+## Phase 7 acceptance evidence
+
+- Progress groups exact movement names across all programme days and saved history, ignoring case and repeated/edge whitespace. Dumbbell Shoulder Press now has one combined chart and PR entry. Different equipment/variation names remain separate; no fuzzy matching or log migration occurs. Every matching log within a workout contributes valid sets once.
+- Next targets remain labelled by day and retain that slot’s sets, rep range and coaching evidence. This prevents a heavy 6–10 day from overwriting an 8–12 day’s prescription. Workout-level rows identify their source day. History PR badges use the same shared movement identity; corrections, deletion and Undo refresh the combined records.
+- Home prioritises a recovered active workout with completed-set counts and Continue. Otherwise it shows the next programme day, its real rest-day name and a phase-aware duration estimate. The last-workout card excludes rest logs.
+- This week counts finished lifting workouts and valid completed sets from Monday through today. An optional weekly goal is a presentation preference, not a changed training schedule. Active/rest/future workouts cannot inflate it.
+- Personalise Home saves an optional name, weekly goal and visibility of bodyweight, nutrition and training priorities. Old backups need no preferences or storage rewrite; JSON backup/import preserves and validates new preferences. Cancel, invalid input, quota failures and stale tabs retain saved preferences and training data.
+- Training priorities expose existing logged-performance stall/decline/reduction evidence for the next or active day, plus active lower-readiness guidance. Missing evidence produces no invented alerts. Home quick actions reach Progress, History and the actual bodyweight/nutrition input; the old nutrition-summary Log no-op is fixed. Measurement saves commit atomically and retain entered fields on failure.
+- Logic and Chromium/WebKit dashboard acceptance suites cover shared duplicate exercises, separate day targets, variants, duplicate logs, read-only rendering, correction/delete/Undo, preferences/reload, tracking links, quota failure/retry and mobile overflow. Earlier phase and PWA suites remain required.

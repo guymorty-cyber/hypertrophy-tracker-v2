@@ -16,7 +16,7 @@ test('Latest and previous metrics compare whole workouts in chronological order,
 });
 test('Variations remain separate and removed exercises retain charts and records',()=>{
  const {h,ex}=fixture();assert.equal(h.app.exerciseProgress(ex.id,'Different press').length,1);assert.equal(h.app.getPRFor(ex.id,ex.name).heaviest.weight,35);
- h.app.data.program[0].exercises=[];const archived=h.app.progressExercises().find(e=>e.id===ex.id && e.name===ex.name);assert(archived && !archived.current);h.app.progressSelection=archived.key;assert(h.app.renderProgress().includes('Historical variation / removed exercise'));assert.equal(h.app.allExercisePRs().length,2);
+ h.app.data.program.forEach(day=>day.exercises=day.exercises.filter(e=>e.name!==ex.name));const archived=h.app.progressExercises().find(e=>e.id===ex.id && e.name===ex.name);assert(archived && !archived.current);h.app.progressSelection=archived.key;assert(h.app.renderProgress().includes('Historical variation / removed exercise'));assert.equal(h.app.allExercisePRs().length,2);
 });
 test('Heaviest record chooses the most reps at that load, including bodyweight zero',()=>{
  const {h,ex,set}=fixture();h.app.data.sessions[0].exercises[0].sets=[set(35,5),set(35,12)];assert.equal(h.app.getPRFor(ex.id,ex.name).heaviest.reps,12);
