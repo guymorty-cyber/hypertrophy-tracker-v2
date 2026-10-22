@@ -76,6 +76,10 @@ function attachTabEvents(){
 
   const exSearch = document.getElementById('exSearch');
   if(exSearch) exSearch.oninput = ()=>{ exerciseFilterQuery = exSearch.value; renderTab(); setTimeout(()=>{ const s=document.getElementById('exSearch'); if(s){s.focus(); s.setSelectionRange(s.value.length,s.value.length);} },0); };
+  for(const [id,setter] of [['progressRange',value=>progressRange=value],['progressMetric',value=>progressMetric=value]]){
+    const control=document.getElementById(id);
+    if(control)control.onchange=()=>{setter(control.value);renderTab();};
+  }
   const exSelect = document.getElementById('exSelect');
   if(exSelect) exSelect.onchange = ()=>{ selectedProgressExId = exSelect.value; renderTab(); };
   const histSearch = document.getElementById('histSearch');

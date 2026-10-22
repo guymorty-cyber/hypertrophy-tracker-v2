@@ -14,7 +14,7 @@ function renderMore(){
       ${bw.length ? `<div class="svgwrap" style="margin-top:14px;">${renderSparkline(bw.map(b=>({date:b.date,value:b.weight})))}</div>` : ''}
       <div class="metric-grid">
         <div class="metric"><div class="label">Latest</div><div class="value">${bw.length?bw[bw.length-1].weight+' kg':'—'}</div></div>
-        <div class="metric"><div class="label">Weekly avg trend</div><div class="value" style="font-size:13px;">${weekAvg.length>=2 ? (weekAvg[weekAvg.length-1].avg-weekAvg[weekAvg.length-2].avg).toFixed(2)+' kg/wk' : 'Need 2+ weeks'}</div></div>
+        <div class="metric"><div class="label">Weekly avg trend</div><div class="value" style="font-size:13px;">${bodyweightWeeklyRate(weekAvg)!==null ? bodyweightWeeklyRate(weekAvg).toFixed(2)+' kg/wk' : 'Need 2+ weeks'}</div></div>
       </div>
     </div>
 
@@ -63,6 +63,7 @@ function computeNutritionAdvice(){
   const weekAvg = computeWeeklyAvg();
   if(weekAvg.length<3) return null;
   const last3 = weekAvg.slice(-3);
+  if(last3.some((row,i)=>i>0 && utcDay(row.date)-utcDay(last3[i-1].date)!==7*86400000)) return null;
   const diffs = [];
   for(let i=1;i<last3.length;i++) diffs.push(last3[i].avg-last3[i-1].avg);
   const lastTwo = diffs.slice(-2);

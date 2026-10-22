@@ -236,3 +236,14 @@ a.linklike{color:var(--accent);text-decoration:none;font-weight:700;font-size:13
 .history-edit-ex{border-top:1px solid var(--line);margin-top:16px;padding-top:8px;}
 .history-edit-ex .field{margin-top:10px;}
 .history-edit-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:14px;}
+
+.progress-title{margin:0 0 4px;font-size:18px;}
+.progress-caption{display:block;font-size:12px;line-height:1.5;color:var(--text-dim);margin:6px 0;}
+.progress-change,.progress-next{font-size:13px;line-height:1.5;margin-top:12px;color:var(--teal);}
+.chart-label{font-size:10px;fill:var(--text-dim);}
+.progress-table-wrap{overflow-x:auto;}
+.progress-table{border-collapse:collapse;width:100%;font-size:12px;}
+.progress-table th,.progress-table td{text-align:left;padding:10px 5px;border-bottom:1px solid var(--line);vertical-align:top;}
+.progress-table th{color:var(--text-dim);font-weight:600;}
+.progress-table td:nth-child(2){white-space:nowrap;}
+.pr-item{gap:10px;}.pr-item>div{min-width:0;}.prval{font-size:15px;}

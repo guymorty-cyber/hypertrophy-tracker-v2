@@ -46,28 +46,28 @@ function estOneRM(weight,reps){
   if(!weight||!reps) return 0;
   return weight*(1+reps/30);
 }
-function allCompletedSetsFor(exId){
+function allCompletedSetsFor(exId,displayName=null){
   const out = [];
   for(const s of DATA.sessions){
-    const exLog = s.exercises.find(e=>e.exerciseId===exId);
+    const exLog = s.exercises.find(e=>e.exerciseId===exId && (displayName===null || e.name===displayName));
     if(!exLog) continue;
     exLog.sets.forEach((st,i)=>{
-      if(st.completed && st.weight>0 && st.reps>0){
-        out.push({date:s.date,sessionId:s.id,weight:st.weight,reps:st.reps,setIndex:i});
+      if(usablePreviousSet(st)){
+        out.push({date:s.date,startedAt:s.startedAt,sessionId:s.id,weight:st.weight,reps:st.reps,setIndex:i});
       }
     });
   }
-  return out.sort((a,b)=> a.date<b.date?-1:1);
+  return out.sort((a,b)=>a.date.localeCompare(b.date) || a.startedAt-b.startedAt || String(a.sessionId).localeCompare(String(b.sessionId)) || a.setIndex-b.setIndex);
 }
-function getPRFor(exId){
-  const sets = allCompletedSetsFor(exId);
+function getPRFor(exId,displayName=null){
+  const sets = allCompletedSetsFor(exId,displayName);
   if(!sets.length) return null;
   let heaviest = sets[0], bestE1RM = sets[0];
   const byWeight = {};
   sets.forEach(s=>{
-    if(s.weight>heaviest.weight) heaviest=s;
+    if(s.weight>heaviest.weight || (s.weight===heaviest.weight && s.reps>heaviest.reps)) heaviest=s;
     const e = estOneRM(s.weight,s.reps);
-    if(e> estOneRM(bestE1RM.weight,bestE1RM.reps)) bestE1RM=s;
+    if(e>estOneRM(bestE1RM.weight,bestE1RM.reps) || (e===estOneRM(bestE1RM.weight,bestE1RM.reps) && s.reps>bestE1RM.reps)) bestE1RM=s;
     if(!byWeight[s.weight] || s.reps>byWeight[s.weight].reps) byWeight[s.weight]=s;
   });
   return {heaviest, bestE1RM, byWeight, all:sets};

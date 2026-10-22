@@ -12,6 +12,8 @@ permissions:
 
 jobs:
   check:
+    outputs:
+      pages_artifact: hypertrophy-pages-${{ github.run_id }}-${{ github.run_attempt }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -24,6 +26,7 @@ jobs:
           node tests/coaching.cjs
           node tests/logging.cjs
           node tests/history.cjs
+          node tests/progress.cjs
       - name: Install browser test tools
         run: |
           npm install --no-save --package-lock=false playwright@1.56.1
@@ -36,6 +39,7 @@ jobs:
           node tests/coaching-browser.mjs
           node tests/logging-browser.mjs
           node tests/history-browser.mjs
+          node tests/progress-browser.mjs
           node tests/pwa.mjs
       - name: Upload Pages artifact
         if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
@@ -64,7 +68,7 @@ jobs:
         id: deployment
         uses: actions/deploy-pages@v4
         with:
-          artifact_name: hypertrophy-pages-${{ github.run_id }}-${{ github.run_attempt }}
+          artifact_name: ${{ needs.check.outputs.pages_artifact }}
 
       - name: Verify published PWA
         env:
@@ -76,9 +80,9 @@ jobs:
           base=os.environ['PAGE_URL'].rstrip('/')+'/'
           build=os.environ['EXPECTED_BUILD']
           def get(path):
-              with urllib.request.urlopen(base+path+'?verify='+build, timeout=15) as response:
+              with urllib.request.urlopen(base+path+'?verify='+build+'-'+str(time.time_ns()), timeout=15) as response:
                   return response.read().decode('utf-8')
-          for attempt in range(6):
+          for attempt in range(12):
               try:
                   assert json.loads(get('version.json'))['build']==build
                   assert './assets/'+build+'/' in get('index.html')
@@ -87,6 +91,6 @@ jobs:
                   print('Published PWA verified:',base,build)
                   break
               except Exception:
-                  if attempt==5: raise
+                  if attempt==11: raise
                   time.sleep(5)
           PYVERIFY
