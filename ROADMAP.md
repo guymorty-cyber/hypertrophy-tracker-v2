@@ -6,7 +6,7 @@ The original ten-phase roadmap remains the organising plan. Work already shipped
 |---|---|---|
 | 1. Coaching foundation | Last performance, specific weight/rep targets, double progression, effort guidance, exercise increments, explanations and missing-data handling | Implemented with unit and browser acceptance checks in this release |
 | 2. Workout logging | Fast entry, editable sets, rest timers, notes, finishing and recovery | Implemented with logging, recovery and edit-safety acceptance checks in this release |
-| 3. History & data | History/details, search, edit/delete/Undo and data integrity | Existing foundation; full phase acceptance remains |
+| 3. History & data | History/details, search, edit/delete/Undo and data integrity | Implemented with correction, search, deletion/Undo and data-integrity acceptance checks in this release |
 | 4. Progress & analytics | Weight/reps/volume/strength trends, PRs, bodyweight and charts | Existing basic views; full phase acceptance remains |
 | 5. Programme builder | Custom exercises/days, sets, rep ranges, increments, RIR/tempo and programme structure | Existing editor; final exercise programme still needs reconciliation |
 | 6. Advanced coaching | Adapt recommendations to logged performance and recovery | Not accepted yet |
@@ -40,3 +40,14 @@ The engine implements transparent programme rules. It does not claim to measure 
 - Rest timers use wall-clock deadlines; extension, skip and recovery are checked alongside notes and completed-set recovery.
 - `tests/logging.cjs` adds ten logic checks; `tests/logging-browser.mjs` exercises real entry, editing, swaps, notes, reopening, timers, cancellation, finishing and the next workout in Chromium and WebKit. Existing workout, coaching and offline/update suites remain required.
 - Actual iPhone Home Screen testing remains part of Phase 8; automated WebKit checks do not replace an on-device check.
+
+## Phase 3 acceptance evidence
+
+- History orders by date, start time and a stable ID tie-breaker. Search covers workout/exercise names, ISO or displayed dates, workout notes and exercise notes, with a visible result count.
+- Edit workout is available from History and workout details. It edits the date, workout/exercise notes, weights, reps and completion flags in a separate draft. Cancel does not change the record; Save validates before committing.
+- Edits preserve workout ID, timestamps, duration, exercise identity/variation, knee checks and exercise definitions. Unrelated workouts' logs, the active workout, programme, nutrition and bodyweight remain intact. Reminder dates track corrected dates.
+- Totals and PR badges are derived from valid completed sets, in chronological order, with separate exercise variations. Corrections, new workouts, deletion, Undo and imports refresh derived values. Viewing History does not rewrite storage.
+- Multiple deletions can be undone one at a time in reverse order until reload. Failed deletion/Undo retains both the record and remaining Undo entries. Import, restore and reset clear the in-memory Undo list.
+- Invalid values, storage-full errors and stale tabs cannot replace historical records. Save errors retain the editor and its entered draft for retry.
+- JSON export/import retains corrected logs; import validates and refreshes summaries. Read errors allow selecting the file again.
+- `tests/history.cjs` adds thirteen logic checks. `tests/history-browser.mjs` checks actual search, editing, Cancel, invalid inputs, quota failure/retry, reload, derived PRs, detail deletion, repeated Undo, JSON download/import and stale-tab rejection in Chromium and WebKit. Existing logging, coaching and offline/update checks remain required.

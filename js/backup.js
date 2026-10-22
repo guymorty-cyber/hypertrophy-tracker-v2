@@ -18,14 +18,15 @@ function importData(e){
       const parsed=validateData(JSON.parse(ev.target.result));
       if(!confirm('Import will replace your current data. Continue?')) return;
       parsed.restEndAt=null;
+      parsed.sessions=rebuildHistory(parsed.sessions);
       if(!commitData(parsed,true)) return;
-      deletedWorkout=null;
+      deletedWorkouts=[];
       document.getElementById('undoPanel').hidden=true;
       stopRestTimer(false); closeModal(); renderTab();
       alert('Data imported and saved.');
     }catch(err){ alert('Could not import: '+err.message); }
     finally{ e.target.value=''; }
   };
-  reader.onerror=()=>alert('Could not read that file. Your current data has not changed.');
+  reader.onerror=()=>{e.target.value='';alert('Could not read that file. Your current data has not changed.');};
   reader.readAsText(file);
 }
