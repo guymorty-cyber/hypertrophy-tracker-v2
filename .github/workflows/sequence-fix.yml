@@ -30,6 +30,7 @@ jobs:
           node tests/programme.cjs
           node tests/adaptive.cjs
           node tests/dashboard.cjs
+          node tests/mobile.cjs
       - name: Install browser test tools
         timeout-minutes: 5
         run: |
@@ -49,6 +50,7 @@ jobs:
           node tests/programme-browser.mjs
           node tests/adaptive-browser.mjs
           node tests/dashboard-browser.mjs
+          node tests/mobile-browser.mjs
           node tests/pwa.mjs
       - name: Upload Pages artifact
         if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'

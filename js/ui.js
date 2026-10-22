@@ -28,15 +28,26 @@ function renderTab(){
   else if(currentTab==='history') c.innerHTML = renderHistory();
   else if(currentTab==='more') c.innerHTML = renderMore();
   attachTabEvents();
+  syncMobileControls();
 }
 /* ---------- modal ---------- */
+let modalReturnFocus=null;
 function showModal(html){
+  if(document.getElementById('overlay').classList.contains?.('hide'))modalReturnFocus=document.activeElement;
   document.getElementById('modalBody').innerHTML = html;
   document.getElementById('overlay').classList.remove('hide');
+  document.body.classList.add('modal-open');
+  document.getElementById('modalBody').focus?.({preventScroll:true});
+  syncMobileControls();
   document.querySelectorAll('[data-action="closeModal"]').forEach(b=> b.onclick = closeModal);
 }
 function closeModal(){
   document.getElementById('overlay').classList.add('hide');
+  document.body.classList.remove('modal-open');
+  if(modalReturnFocus?.isConnected)modalReturnFocus.focus({preventScroll:true});
+  else document.querySelector('#navbar button.active')?.focus({preventScroll:true});
+  modalReturnFocus=null;
+  syncMobileControls();
 }
 document.getElementById('overlay').addEventListener('click', (e)=>{
   if(e.target.id==='overlay') closeModal();
