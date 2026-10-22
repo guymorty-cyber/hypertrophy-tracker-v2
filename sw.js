@@ -35,7 +35,8 @@ self.addEventListener('fetch',event=>{
   if(request.method!=='GET' || url.origin!==scope.origin || !url.pathname.startsWith(scope.pathname)) return;
   const relative=url.pathname.slice(scope.pathname.length);
   if(relative==='version.json' || relative==='sw.js'){
-    event.respondWith(fetch(new Request(request,{cache:'no-store'})));
+    event.respondWith(fetch(new Request(request,{cache:'no-store'})).catch(()=>
+      new Response('',{status:503,statusText:'Offline'})));
     return;
   }
   if(request.mode==='navigate' && ['', 'index.html', 'hypertrophy-trackernew.html'].includes(relative)){
