@@ -127,7 +127,7 @@ function renderExerciseBlock(ex, log, lastLog, rec,number=exNumber(ex.id)){
   if(rec){
     const cls = rec.type==='up'?'reco-up':(rec.type==='reps'?'reco-reps':(rec.type==='down'?'reco-maintain':'reco-reps'));
     const targets=rec.prescription.map((set,i)=>`<div class="coach-set-target">Set ${i+1}: ${set.weight===null?'choose load':set.weight===0?'bodyweight (0 kg)':set.weight+' kg'} × ${set.reps} reps</div>`).join('');
-    recoHtml = `<div class="reco reco-coach ${cls}"><div class="coach-title">Today’s prescription · ${escapeHtml(rec.context.phase)}</div><div class="coach-main">${escapeHtml(rec.text)}</div><div class="coach-effort">${escapeHtml(rec.context.effort)}</div><div class="coach-set-targets">${targets}</div><div class="coach-detail">${escapeHtml(rec.detail)}</div></div>`;
+    recoHtml = `<div class="reco reco-coach ${cls}"><div class="coach-title">Today’s target · ${escapeHtml(rec.context.phase)}</div><div class="coach-goal">${escapeHtml(coachingSummary(rec))}</div><div class="coach-effort">${escapeHtml(rec.context.effort)}</div><details class="coach-explanation"><summary>Why this target? · Set-by-set plan</summary>${renderCoachingVerdict(rec)}<div class="coach-main">${escapeHtml(rec.text)}</div><div class="coach-set-targets">${targets}</div><div class="coach-detail">${escapeHtml(rec.detail)}</div></details></div>`;
   }
 
   return `<div class="ex-card">
@@ -147,10 +147,10 @@ function renderExerciseBlock(ex, log, lastLog, rec,number=exNumber(ex.id)){
         <button data-action="removeSet" data-exid="${ex.id}" ${log.sets.length<=1 || log.sets[log.sets.length-1].completed?'disabled':''}>Remove last set</button>
       </div>
     </div>
+    ${recoHtml}
     <div class="setlabels"><span>Set</span><span>kg</span><span>Reps</span><span>Done</span></div>
     ${setsRows}
     <div class="effort-feedback field"><label>RIR on final planned set (optional)</label><select aria-label="Reported final-set RIR" data-action="exerciseEffort" data-exid="${ex.id}" ${log.sets.length>=rec.sets && log.sets.slice(0,rec.sets).every(usablePreviousSet)?'':'disabled'}>${rirOptions(log.effortRir)}</select><div class="progress-caption">Log the planned sets first, then report reps you could still perform with good technique. 5 means 5 or more; nothing is inferred when left blank.</div></div>
-    ${recoHtml}
     <div class="notesbox">
       <textarea placeholder="Exercise notes (form cues, equipment, pain, etc.)" data-action="exNotes" data-exid="${ex.id}">${escapeHtml(log.notes||'')}</textarea>
     </div>

@@ -47,7 +47,7 @@ function renderHome(wk,phase){
     <div class="home-heading"><h2>${prefs.name?`Welcome, ${escapeHtml(prefs.name)}`:'Your training'}</h2><button class="btn btn-sm btn-outline" data-action="personaliseDashboard">Personalise</button></div>
     ${pendingBlock}
     ${dashCard}
-    <div class="card" id="homeWeek"><div class="eyebrow">THIS WEEK · MONDAY–SUNDAY</div><div class="home-week-value">${summary.workouts}${prefs.weeklyGoal?' / '+prefs.weeklyGoal:''} workouts</div><div class="progress-caption">${summary.sets} completed sets · ${progressNumber(summary.volume,0)} kg·reps recorded${prefs.weeklyGoal?' · your weekly goal':''}</div></div>
+    <div class="card" id="homeWeek"><div class="eyebrow">THIS WEEK · MONDAY–SUNDAY</div><div class="home-week-value">${summary.workouts}${prefs.weeklyGoal?' / '+prefs.weeklyGoal:''} workouts</div><div class="progress-caption">${summary.sets} completed sets · ${progressNumber(summary.volume,0)} kg·reps recorded${prefs.weeklyGoal?' · your weekly goal':''}</div>${prefs.showCoaching?renderWeeklyReview(wk):''}</div>
     <div class="home-actions" aria-label="Quick actions"><button class="btn btn-secondary" data-action="homeNavigate" data-tab="progress">View progress</button><button class="btn btn-secondary" data-action="homeNavigate" data-tab="history">Workout history</button><button class="btn btn-secondary" data-action="homeTrack" data-input="bwInput">Log bodyweight</button><button class="btn btn-secondary" data-action="homeTrack" data-input="calInput">Log nutrition</button></div>
     ${prefs.showCoaching?renderDashboardCoaching(day,wk):''}
     <div class="stat-grid">
@@ -116,7 +116,7 @@ function renderDashboardCoaching(day,wk){
     const name=log?.name||ex.currentDisplay||ex.name,last=lastSessionFor(ex.id,name);
     if(!last)continue;
     const rec=computeRecommendation(ex,last.log,{weekNumber:active?.weekNumber||wk,readiness:active?.readiness});
-    if(['stall','declining'].includes(rec.insight?.pattern) || rec.type==='down')alerts.push({name,text:rec.detail});
+    if(['stall','declining'].includes(rec.insight?.pattern) || rec.type==='down')alerts.push({name,text:coachingVerdict(rec).reason+' '+coachingSummary(rec)});
   }
   if(active?.readiness==='low')alerts.unshift({name:'Lower readiness today',text:'Load increases are paused today. Follow the effort targets in your current workout.'});
   if(!alerts.length)return '';
@@ -133,7 +133,7 @@ function saveDashboardPreferences(prefs){
 }
 function openDashboardPreferences(){
   const prefs=dashboardPreferences();
-  showModal(`<h3>Personalise Home</h3><div class="field"><label for="dashboardName">Name (optional)</label><input id="dashboardName" maxlength="60" value="${escapeHtml(prefs.name)}"></div><div class="field"><label for="dashboardGoal">Weekly workout goal (optional)</label><input id="dashboardGoal" type="number" min="1" max="14" step="1" inputmode="numeric" value="${prefs.weeklyGoal??''}"></div><p class="progress-caption">Your goal is a display preference; it does not change your programme.</p>${[['showBodyweight','Bodyweight summary'],['showNutrition','Nutrition summary'],['showCoaching','Training priorities']].map(([key,label])=>`<label class="home-setting"><input type="checkbox" id="dashboard_${key}" ${prefs[key]?'checked':''}> ${label}</label>`).join('')}<p id="dashboardError" role="alert"></p><button class="btn btn-primary" id="dashboardSave">Save preferences</button><button class="btn btn-outline" data-action="closeModal">Cancel</button>`);
+  showModal(`<h3>Personalise Home</h3><div class="field"><label for="dashboardName">Name (optional)</label><input id="dashboardName" maxlength="60" value="${escapeHtml(prefs.name)}"></div><div class="field"><label for="dashboardGoal">Weekly workout goal (optional)</label><input id="dashboardGoal" type="number" min="1" max="14" step="1" inputmode="numeric" value="${prefs.weeklyGoal??''}"></div><p class="progress-caption">Your goal is a display preference; it does not change your programme.</p>${[['showBodyweight','Bodyweight summary'],['showNutrition','Nutrition summary'],['showCoaching','Coaching and weekly review']].map(([key,label])=>`<label class="home-setting"><input type="checkbox" id="dashboard_${key}" ${prefs[key]?'checked':''}> ${label}</label>`).join('')}<p id="dashboardError" role="alert"></p><button class="btn btn-primary" id="dashboardSave">Save preferences</button><button class="btn btn-outline" data-action="closeModal">Cancel</button>`);
   document.getElementById('dashboardSave').onclick=()=>{
     const goal=document.getElementById('dashboardGoal').value.trim();
     const next={name:document.getElementById('dashboardName').value,weeklyGoal:goal===''?null:Number(goal)};
@@ -141,4 +141,47 @@ function openDashboardPreferences(){
     if(saveDashboardPreferences(next)){closeModal();renderTab();}
 
   };
+}
+
+/* Monday through today, derived on each render so History corrections/Undo stay authoritative. */
+function weeklyCoachingReview(wk=getWeekNumber()){
+  const start=mondayOf(todayISO()),trained=new Map(),groups=new Map();
+  for(const session of DATA.sessions){
+    if(session.date<start || session.date>todayISO())continue;
+    for(const log of session.exercises)if(log.sets.some(usablePreviousSet))trained.set(movementKey(log.name),log.name);
+  }
+  for(const day of DATA.program)for(const ex of day.exercises){
+    const name=ex.currentDisplay||ex.name,key=movementKey(name);
+    if(!trained.has(key))continue;
+    const last=lastSessionFor(ex.id,name);
+    if(!last || last.session.date<start)continue;
+    const rec=computeRecommendation(ex,last.log,{weekNumber:wk}),verdict=coachingVerdict(rec);
+    if(!groups.has(key))groups.set(key,{name,slots:[]});
+    groups.get(key).slots.push({dayName:day.name,rec,verdict});
+  }
+  const priority={attention:5,improving:4,holding:3,deload:2,baseline:1};
+  const movements=[...trained].map(([key,name])=>{
+    const group=groups.get(key)||{name,slots:[]};
+    const keyStatus=group.slots.reduce((best,slot)=>priority[slot.verdict.key]>priority[best]?slot.verdict.key:best,'baseline');
+    return {...group,key:keyStatus};
+  });
+  const counts={improving:0,holding:0,attention:0,baseline:0,deload:0};
+  for(const movement of movements)counts[movement.key]++;
+  let focus='Log your planned working sets to build a useful comparison.';
+  const attention=movements.find(m=>m.key==='attention');
+  if(getPhase(wk).name==='Deload')focus='Follow the reduced set count and 3–4 RIR target this week; records can wait.';
+  else if(DATA.activeSession?.readiness==='low')focus='Follow today’s easier effort targets; progression is paused for this workout.';
+  else if(attention){
+    const slot=attention.slots.find(s=>s.verdict.key==='attention');
+    focus=attention.name+' ('+slot.dayName+'): '+(slot.rec.type==='down'?coachingSummary(slot.rec):'Keep the load steady and use the planned rest and technique before chasing more reps.');
+  }else if(counts.improving)focus='Keep following the set targets. Add load only when the planned rep and effort targets are met.';
+  return {start,movements,counts,focus};
+}
+function renderWeeklyReview(wk){
+  const review=weeklyCoachingReview(wk),c=review.counts;
+  return `<div class="weekly-review" id="weeklyReview"><div class="weekly-verdicts">${review.movements.length?`${c.improving} improving · ${c.holding} holding · ${c.attention} need attention`:'Your weekly review starts with your first completed workout.'}</div>
+    ${c.baseline||c.deload?`<div class="progress-caption">${c.baseline?c.baseline+' building a baseline':''}${c.baseline&&c.deload?' · ':''}${c.deload?c.deload+' in deload':''}</div>`:''}
+    <div class="weekly-focus"><strong>One focus:</strong> ${escapeHtml(review.focus)}</div>
+    <details class="coach-explanation"><summary>Review this week</summary><p class="progress-caption">Monday through today. Each movement counts once; its day prescriptions are assessed separately. Needs attention takes priority when days differ. Trends require three comparable workouts, which may include earlier weeks.</p>
+    ${review.movements.length?review.movements.map(m=>`<div class="weekly-movement"><strong>${escapeHtml(m.name)}</strong>${m.slots.length?m.slots.map(slot=>`<div class="weekly-slot"><span>${escapeHtml(slot.dayName)}</span>${renderCoachingVerdict(slot.rec)}</div>`).join(''):'<div class="progress-caption">Building a baseline · no matching current prescription.</div>'}</div>`).join(''):'<p class="progress-caption">Finished workouts appear here. Rest days and your unfinished workout are excluded.</p>'}</details></div>`;
 }

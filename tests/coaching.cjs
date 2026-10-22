@@ -83,7 +83,7 @@ test('Recovery keeps the workout start phase instead of changing recommendations
   const h=setup();h.app.startSession(0);h.state.clock+=28*86400000;
   h.app.startSession(1);
   assert(h.element('phaseLabel').textContent.includes('Week 1 · Calibration'));
-  const html=h.app.renderActiveSession();assert(html.includes('Today’s prescription · Calibration'));
+  const html=h.app.renderActiveSession();assert(html.includes('Today’s target · Calibration'));
   assert(!html.includes('Today’s prescription · Deload'));
 });
 test('A chosen exercise variation persists into the next workout and its visible heading',()=>{

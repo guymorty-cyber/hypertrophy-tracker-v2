@@ -34,10 +34,11 @@ try{
    });await page.reload();
    const start=async()=>{await page.locator('#navbar [data-tab="train"]').click();await page.locator('#dayPicker').selectOption('0');await page.locator('[data-action="startPicked"]').click();};
    await start();const first=page.locator('.ex-card').first();
+   const explain=async()=>{if(!await first.locator('.coach-explanation').evaluate(el=>el.open))await first.locator('.coach-explanation > summary').click();};await explain();
    assert((await first.locator('.coach-detail').innerText()).includes('three comparable workouts'));
    assert((await first.locator('.coach-main').innerText()).includes('HOLD / REBUILD'));
    assert.equal(await first.locator('[data-action="exerciseEffort"]').isDisabled(),true);
-   await page.locator('#workoutReadiness').selectOption('low');assert((await first.locator('.coach-detail').innerText()).includes('readiness lower than usual'));
+   await page.locator('#workoutReadiness').selectOption('low');await explain();assert((await first.locator('.coach-detail').innerText()).includes('readiness lower than usual'));
    await page.locator('#workoutReadiness').selectOption('usual');
    await first.locator('[data-field="weight"]').first().fill('40');await first.locator('[data-field="reps"]').first().fill('10');await first.locator('[data-action="toggleComplete"]').first().check();
    await page.evaluate(()=>{window.originalSetItem=Storage.prototype.setItem;Storage.prototype.setItem=function(key,value){if(key==='htData_v1')throw new DOMException('full','QuotaExceededError');return window.originalSetItem.call(this,key,value);};});
@@ -46,12 +47,12 @@ try{
    await page.reload();assert.equal(await first.locator('[data-action="exerciseEffort"]').inputValue(),'0');assert.equal(await page.locator('#workoutReadiness').inputValue(),'usual');
    await page.locator('[data-action="finishWorkout"]').click();await page.locator('[data-action="closeModalHome"]').click();
    const id=await page.evaluate(()=>JSON.parse(localStorage.getItem('htData_v1')).sessions.at(-1).id);
-   await start();assert((await first.locator('.coach-main').innerText()).includes('40 KG'));assert((await first.locator('.coach-detail').innerText()).includes('harder than its 2 RIR target'));
+   await start();await explain();assert((await first.locator('.coach-main').innerText()).includes('40 KG'));assert((await first.locator('.coach-detail').innerText()).includes('harder than its 2 RIR target'));
    await page.locator('#navbar [data-tab="history"]').click();await page.locator(`[data-action="editHistory"][data-sid="${id}"]`).click();
    assert.equal(await page.locator('#historyEffort_0').inputValue(),'0');await page.locator('#historyEffort_0').selectOption('2');await page.locator('#historyEditSave').click();assert((await page.locator('#modalBody').innerText()).includes('Reported final-set RIR: 2'));await page.locator('[data-action="closeModal"]').click();
-   await page.locator('#navbar [data-tab="train"]').click();assert((await first.locator('.coach-main').innerText()).includes('42.5 KG'));
-   await page.locator('#workoutReadiness').selectOption('low');assert((await first.locator('.coach-main').innerText()).includes('40 KG'));assert((await first.locator('.coach-effort').innerText()).includes('Lower readiness'));
-   await page.locator('#workoutReadiness').selectOption('');assert((await first.locator('.coach-main').innerText()).includes('42.5 KG'));
+   await page.locator('#navbar [data-tab="train"]').click();await explain();assert((await first.locator('.coach-main').innerText()).includes('42.5 KG'));
+   await page.locator('#workoutReadiness').selectOption('low');await explain();assert((await first.locator('.coach-main').innerText()).includes('40 KG'));assert((await first.locator('.coach-effort').innerText()).includes('Lower readiness'));
+   await page.locator('#workoutReadiness').selectOption('');await explain();assert((await first.locator('.coach-main').innerText()).includes('42.5 KG'));
    assert(await page.evaluate(()=>document.documentElement.scrollWidth<=window.innerWidth+1));assert.deepEqual(errors,[]);
    console.log(name+': Phase 6 stall explanation, readiness controls, gated RIR feedback, quota rollback, recovery, next-workout adaptation and History correction passed');await context.close();
   }finally{await browser.close();}

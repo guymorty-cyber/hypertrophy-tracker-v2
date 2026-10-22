@@ -192,3 +192,28 @@ function evalKnee(score){
   if(score===3) return {level:'orange',label:'Stop this movement — substitute a hip-dominant/stable alternative',cls:'pill-warn'};
   return {level:'red',label:'Stop lower-body loading — seek clinical assessment',cls:'pill-danger'};
 }
+
+/* Clarity: presentation derived from the existing prescription, never a second coach. */
+function coachingSummary(rec){
+  const load=rec.nextWeight===null?'the listed set loads':rec.nextWeight===0?'bodyweight (0 kg)':rec.nextWeight+' kg';
+  const target=rec.targetTotal+' total reps across '+rec.sets+' sets';
+  if(rec.context.deload)return 'Deload: '+rec.sets+' controlled sets. Leave 3–4 reps in reserve.';
+  if(rec.type==='first' || !rec.prescription.some(set=>set.weight!==null))return 'Choose a controlled load. Aim for '+rec.targetReps+' reps per set.';
+  if(rec.type==='up')return 'Try '+load+' and aim for '+target+'.';
+  if(rec.type==='down')return 'Reduce to '+load+' and rebuild towards '+target+'.';
+  if(rec.type==='reps')return 'Keep '+load+'. Aim for '+(rec.targetTotal===rec.insight?.totals.at(-1)+1?'one more total rep: ':'')+target+'.';
+  return 'Keep '+load+' and aim for '+target+' at the planned effort.';
+}
+function coachingVerdict(rec){
+  const pattern=rec.insight?.pattern,count=rec.insight?.count||0;
+  if(rec.context.deload)return {key:'deload',label:'Deload',reason:'Reduced training is planned; this is not a decline.'};
+  if(rec.type==='down' || ['stall','declining'].includes(pattern))return {key:'attention',label:'Needs attention',reason:pattern==='stall'?'Total reps have not risen across three comparable workouts.':pattern==='declining'?'Total reps fell across three comparable workouts.':'Repeated rep or effort shortfalls triggered one programmed load reduction.'};
+  if(rec.context.effort.startsWith('Lower readiness'))return {key:'holding',label:'Holding steady',reason:'Progression is paused for today’s lower readiness report.'};
+  if(pattern==='improving')return {key:'improving',label:'Improving',reason:'Total reps rose across three comparable workouts at the same load.'};
+  if(count<3)return {key:'baseline',label:'Building a baseline',reason:count+' of 3 comparable workouts logged. A new load, changed prescription or break may restart the comparison.'};
+  return {key:'holding',label:'Holding steady',reason:pattern==='target-met'?'The rep target is met. Follow today’s load and effort prescription.':'Results vary across comparable workouts. Follow today’s target.'};
+}
+function renderCoachingVerdict(rec){
+  const verdict=coachingVerdict(rec);
+  return '<span class="coach-verdict verdict-'+verdict.key+'">'+verdict.label+'</span><div class="progress-caption coach-verdict-reason">'+escapeHtml(verdict.reason)+'</div>';
+}

@@ -86,7 +86,7 @@ function renderProgress(){
     const pr=getPRFor(selected.id,selected.name);
     const targets=selected.slots.map(slot=>{
       const last=lastSessionFor(slot.id,slot.name),rec=computeRecommendation(slot.definition,last?.log);
-      return `<div class="progress-target"><strong>${escapeHtml(slot.dayName)}</strong> · ${slot.definition.sets} × ${slot.definition.repMin}–${slot.definition.repMax}<br>Next target: ${escapeHtml(rec.text)}</div>`;
+      return `<div class="progress-target"><strong>${escapeHtml(slot.dayName)}</strong> · ${slot.definition.sets} × ${slot.definition.repMin}–${slot.definition.repMax}<br>${renderCoachingVerdict(rec)}<div class="progress-next-action">Next target: ${escapeHtml(coachingSummary(rec))}</div><details class="coach-explanation"><summary>Why this target? · ${escapeHtml(slot.dayName)}</summary><div class="coach-detail">${escapeHtml(rec.detail)}</div></details></div>`;
     }).join('');
     const series=rows.filter(row=>row[progressMetric]!==null).map(row=>({date:row.date,startedAt:row.startedAt,value:row[progressMetric]}));
     const delta=latest && previous && latest[progressMetric]!==null && previous[progressMetric]!==null?latest[progressMetric]-previous[progressMetric]:null;

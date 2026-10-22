@@ -88,3 +88,16 @@ Phase 7 adds a personalised Home with active-workout continuation, a Monday–Su
 Phase 8 improves phone input sizes and touch targets, allows pinch zoom, adds Previous/Next/Done entry controls and fits dialogs above the on-screen keyboard. Input navigation never checks a set or changes training data. More → App & offline reports launch mode, offline readiness and the current release, with a bounded manual update check. Installation help recognises an existing Home Screen app and explains exporting/importing when moving between Safari and an installed app. Automated Chromium/WebKit tests cover these paths; the actual iPhone keyboard, Share sheet, Home Screen launch and OS backgrounding still require an on-device check.
 
 Phase 9 makes set completion and its rest deadline a single saved transition, rolls back failed timer actions, preserves a meaningful previous snapshot across unchanged saves, and prevents superseded or stale asynchronous imports from replacing data. Ordinary Export uses the original recovery bytes when stored data cannot be read. Validation rejects duplicate live slot IDs and fractional rep prescriptions while retaining historical repeated movements. Future-dated history remains editable but does not drive today’s coaching or workout sequence. See RELIABILITY.md for the audit, acceptance evidence and limits.
+
+
+### Coaching clarity
+
+Train shows the last performance and a short target before set entry. **Why this target? · Set-by-set plan** expands the prescribed loads/reps and existing coaching explanation. The short instruction uses the final prescription, including readiness, effort, deload and load-reduction overrides.
+
+Progress labels each current day prescription as Improving, Holding steady, Needs attention, Building a baseline or Deload. Trends require three comparable workouts; new loads, changed prescriptions, incomplete sets, gaps and deload/readiness history can reset that comparison. Shared movement charts still retain separate day targets.
+
+Home’s **This week** card adds movement verdict counts and one focus. **Review this week** expands day-specific evidence for movements logged Monday through today. A movement counts once; attention takes priority over improvement across its day prescriptions. Earlier comparable workouts may supply trend evidence. Rest days, future dates and unfinished workouts do not count. The existing coaching visibility preference also hides this review.
+
+No saved-data migration or programme change is required. History edits, deletion and Undo immediately refresh this derived advice. These are logged-performance summaries, not a measurement of muscle growth or health.
+
+Additional acceptance: `node tests/clarity.cjs` and `node tests/clarity-browser.mjs` (after packaging and installing the existing Playwright dependencies).
