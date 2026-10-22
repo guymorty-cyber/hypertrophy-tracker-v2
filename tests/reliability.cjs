@@ -43,7 +43,7 @@ test('A delayed import also respects another tab, quota failures and a cancelled
 });
 test('Malformed or ambiguous programme/active identities and fractional prescriptions are rejected before import',()=>{
  const {h}=setup(),before=h.records.get(key);
- const mutations=[d=>d.program[1].exercises[0].id=d.program[0].exercises[0].id,d=>d.activeSession.exercises.push(clone(d.activeSession.exercises[0])),d=>d.program[0].exercises[0].repMin=6.5,d=>d.program[0].exercises[0].repMax=10.5,d=>d.program[0].exercises[0].repMin=0,d=>d.program[0]=null,d=>d.program[0].id=123,d=>d.program[0].exercises[0].id=123,d=>{d.activeSession.exercises[0].exerciseId=123;d.activeSession.exercises[0].definition.id=123;}];
+ const mutations=[d=>d.program[1].exercises[0].id=d.program[0].exercises[0].id,d=>d.activeSession.exercises.push(clone(d.activeSession.exercises[0])),d=>d.program[0].exercises[0].repMin=6.5,d=>d.program[0].exercises[0].repMax=10.5,d=>d.program[0].exercises[0].repMin=0,d=>d.program[0]=null,d=>d.program[0].exercises[0].currentDisplay={},d=>d.program[0].id=123,d=>d.program[0].exercises[0].id=123,d=>{d.activeSession.exercises[0].exerciseId=123;d.activeSession.exercises[0].definition.id=123;}];
  for(const change of mutations){const bad=clone(h.app.data);change(bad);assert.throws(()=>h.app.validateData(bad));h.app.importData(selected(bad));assert.equal(h.records.get(key),before);}
 });
 test('Historical repeated movements remain valid and no legacy read rewrites stored data',()=>{

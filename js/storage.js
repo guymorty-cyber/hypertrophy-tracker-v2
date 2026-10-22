@@ -22,6 +22,7 @@ function validateData(value){
     if(!object(ex) || !id(ex.id) || (live && !text(ex.id)) || !/^[\w-]+$/.test(String(ex.id)) || !text(ex.name) || !Number.isInteger(ex.sets) ||
          ex.sets<1 || ex.sets>100 || !Number.isInteger(ex.repMin) || ex.repMin<1 || !Number.isInteger(ex.repMax) ||
          ex.repMin>ex.repMax || !number(ex.restSec) || !number(ex.inc)) fail();
+    if(ex.currentDisplay!==undefined && ex.currentDisplay!==null && !text(ex.currentDisplay))fail();
     if(ex.rirTarget!==undefined && ex.rirTarget!==null && (!Number.isInteger(ex.rirTarget) || ex.rirTarget<0 || ex.rirTarget>5)) fail();
     if(ex.tempo!==undefined && (!text(ex.tempo) || ex.tempo.length>80)) fail();
     if(ex.alts!==undefined && (!Array.isArray(ex.alts) || ex.alts.some(v=>!text(v)))) fail();
