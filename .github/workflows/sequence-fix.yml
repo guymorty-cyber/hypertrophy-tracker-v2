@@ -19,7 +19,9 @@ jobs:
         with:
           node-version: '22'
       - name: Check persistence and workout behaviour
-        run: node tests/regression.cjs
+        run: |
+          node tests/regression.cjs
+          node tests/coaching.cjs
       - name: Install browser test tools
         run: |
           npm install --no-save --package-lock=false playwright@1.56.1
@@ -29,6 +31,7 @@ jobs:
       - name: Test mobile workouts, offline loading and updates
         run: |
           node tests/browser-smoke.mjs
+          node tests/coaching-browser.mjs
           node tests/pwa.mjs
       - name: Upload Pages artifact
         if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'

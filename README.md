@@ -34,9 +34,11 @@ Requires Python 3 and Node 22. Build with a full commit SHA:
 ```sh
 python scripts/build_pages.py --build FULL_40_CHARACTER_COMMIT_SHA
 node tests/regression.cjs
+node tests/coaching.cjs
 npm install --no-save --package-lock=false playwright@1.56.1
 npx playwright install --with-deps chromium webkit
 node tests/browser-smoke.mjs
+node tests/coaching-browser.mjs
 node tests/pwa.mjs
 python -m http.server --directory dist 8080
 ```
@@ -50,3 +52,7 @@ The dependency-free regression suite executes the same scripts in HTML order wit
 The GitHub Actions workflow tests before deploying `main`. Packaging copies only the app, icons and metadata to `dist`, pins scripts/styles and the cached shell to a commit SHA, and redirects the legacy HTML URL to the maintained app. No app logic is patched during deployment.
 
 Set the repository's Pages Source to **GitHub Actions** so the old branch publisher does not compete with this workflow. Older patch scripts remain in the repository for history and are not executed by deployment.
+
+## Phased development
+
+See `ROADMAP.md` for the agreed ten development phases and acceptance evidence. Phase 1 coaching uses each exercise's programmed increment, explicit per-set targets, phase/category RIR and approximate RPE guidance, reduced deload set counts, and conservative handling of incomplete or mixed-load history. Effort targets are guidance; the app does not infer actual RIR/RPE from reps alone. The saved workout's starting week is used after recovery. Programme exercise selection itself is reviewed in Phase 5.

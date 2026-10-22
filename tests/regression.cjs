@@ -22,7 +22,7 @@ function boot(script, initial={}){
   class Clock extends Date{constructor(...args){super(...(args.length?args:[state.clock]));} static now(){return state.clock;}}
   class Reader{readAsText(file){this.onload({target:{result:file.content}});}}
   const prefix="Object.defineProperty(window,'computeRecommendation',{get:()=>computeRecommendation,set:v=>computeRecommendation=v});\n";
-  const suffix="\nreturn {get data(){return DATA;},set data(v){DATA=v;},get blocked(){return storageBlocked;},get unsaved(){return unsavedChanges;},get timer(){return restTimerState;},get tab(){return currentTab;},defaultData,validateData,save,commitData,load,restoreBackup,deleteWorkout,undoDeleteWorkout,startSession,startRestDay,logRestDay,updateSetField,toggleSetComplete,finishWorkoutFlow,startRestTimer,updateRestTimerFromClock,stopRestTimer,attachTabEvents,importData,renderHistory,renderActiveSession,computeRecommendation,lastSessionFor,addWorkoutSet,removeWorkoutSet,useLastSession};";
+  const suffix="\nreturn {get data(){return DATA;},set data(v){DATA=v;},get blocked(){return storageBlocked;},get unsaved(){return unsavedChanges;},get timer(){return restTimerState;},get tab(){return currentTab;},defaultData,validateData,save,commitData,load,restoreBackup,deleteWorkout,undoDeleteWorkout,startSession,startRestDay,logRestDay,updateSetField,toggleSetComplete,finishWorkoutFlow,startRestTimer,updateRestTimerFromClock,stopRestTimer,attachTabEvents,importData,renderHistory,renderActiveSession,computeRecommendation,getCoachingPrescription,lastSessionFor,addWorkoutSet,removeWorkoutSet,useLastSession};";
   const app=new Function('document','window','localStorage','alert','confirm','navigator','setInterval','clearInterval',
     'setTimeout','Date','crypto','FileReader','Blob','URL',prefix+script+suffix)(
     document,window,localStorage,m=>state.alerts.push(m),()=>state.confirm,{vibrate(){}},()=>1,()=>{},()=>1,Clock,
@@ -228,8 +228,11 @@ const html=fs.readFileSync(path.join(__dirname,'../index.html'),'utf8');
 const scripts=[...html.matchAll(/<script defer src="\.\/([^"]+)"/g)].map(match=>match[1]);
 if(!scripts.length) throw new Error('No app scripts found');
 const script=scripts.map(file=>fs.readFileSync(path.join(__dirname,'..',file),'utf8')).join('\n');
-const results=regressionTests(script);
-for(const r of results) console.log((r.pass?'PASS ':'FAIL ')+r.name+(r.error?': '+r.error:''));
-if(results.some(r=>!r.pass)) process.exitCode=1;
+module.exports={boot,script};
+if(require.main===module){
+  const results=regressionTests(script);
+  for(const r of results) console.log((r.pass?'PASS ':'FAIL ')+r.name+(r.error?': '+r.error:''));
+  if(results.some(r=>!r.pass)) process.exitCode=1;
+}
 
 
