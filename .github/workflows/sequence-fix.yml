@@ -27,6 +27,7 @@ jobs:
           node tests/logging.cjs
           node tests/history.cjs
           node tests/progress.cjs
+          node tests/programme.cjs
       - name: Install browser test tools
         run: |
           npm install --no-save --package-lock=false playwright@1.56.1
@@ -40,6 +41,7 @@ jobs:
           node tests/logging-browser.mjs
           node tests/history-browser.mjs
           node tests/progress-browser.mjs
+          node tests/programme-browser.mjs
           node tests/pwa.mjs
       - name: Upload Pages artifact
         if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'

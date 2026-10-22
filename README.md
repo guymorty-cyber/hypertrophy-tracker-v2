@@ -38,6 +38,7 @@ node tests/coaching.cjs
 node tests/logging.cjs
 node tests/history.cjs
 node tests/progress.cjs
+node tests/programme.cjs
 npm install --no-save --package-lock=false playwright@1.56.1
 npx playwright install --with-deps chromium webkit
 node tests/browser-smoke.mjs
@@ -45,6 +46,7 @@ node tests/coaching-browser.mjs
 node tests/logging-browser.mjs
 node tests/history-browser.mjs
 node tests/progress-browser.mjs
+node tests/programme-browser.mjs
 node tests/pwa.mjs
 python -m http.server --directory dist 8080
 ```
@@ -68,3 +70,5 @@ Phase 2 protects active workouts from programme edits using saved exercise setti
 Phase 3 adds saved-workout corrections from History/details, search by names/dates/notes, same-day ordering and repeated deletion Undo until reload. History edits stay in a separate draft until Save succeeds. Totals and PR badges refresh from valid completed sets, with variations kept separate. Correcting historical performance affects the next coaching recommendation. Export/import uses the existing JSON format and storage key.
 
 Phase 4 compares completed workouts and provides per-session load, reps, volume and estimated-1RM charts with date ranges. Variations and removed exercises retain separate records. Weekly training totals and bodyweight averages use calendar weeks, with missing observations handled explicitly. Analytics read saved logs without rewriting them, and reflect History corrections immediately. Estimated 1RM is a formula estimate; recorded-volume charts include external load only.
+
+Phase 5 expands More → Programme Builder to manage training/rest days and exercise order, copies and removal. The exercise editor supports category, optional RIR, tempo, per-leg reps and alternatives alongside sets/reps/rest/increments. Blank RIR follows the phase; explicit targets apply outside deload, which retains 3–4 RIR. Changes affect future workouts, and existing session snapshots/history remain intact. Copied exercises have new identities and begin without personal history. Personal exercise-plan changes require reviewing the actual programme and current physio instructions separately; this release does not replace the user's saved training plan.

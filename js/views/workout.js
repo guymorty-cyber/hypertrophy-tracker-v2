@@ -133,6 +133,7 @@ function renderExerciseBlock(ex, log, lastLog, rec,number=exNumber(ex.id)){
     <div class="ex-head">
       <h3 class="ex-title">${number}. ${escapeHtml(log.name)}</h3>
       <div class="ex-target">${log.sets.length} sets today${log.sets.length!==ex.sets?' ('+ex.sets+' planned)':''} · ${ex.repMin}–${ex.repMax} reps${ex.perLeg?' each leg':''} · Rest ${Math.round(ex.restSec/60*10)/10>=1?Math.round(ex.restSec/60)+' min':ex.restSec+'s'}</div>
+      ${ex.tempo?`<div class="ex-note">Tempo: ${escapeHtml(ex.tempo)}</div>`:''}
       ${ex.note?`<div class="ex-note">${escapeHtml(ex.note)}</div>`:''}
       ${ex.finalPartials?`<div class="ex-note">${rec.context.partialsAllowed?'Optional final isolation set: follow the programmed controlled partials after technical failure.':'Follow the RIR target; no failure-based partials in this phase.'}</div>`:''}
       ${prevLine}

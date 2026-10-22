@@ -8,13 +8,15 @@ function getCoachingPrescription(exDef, weekNumber=getWeekNumber()){
   if(deload){rirMin=3;rirMax=4;}
   else if(phase.name==='Calibration'){rirMin=rirMax=isolation?1:2;}
   else if(!isolation && ['Overload','Intensification'].includes(phase.name)){rirMax=2;}
-  const finalRir=isolation && phase.name==='Peak'?0:rirMin;
+  const customRir=Number.isInteger(exDef.rirTarget) && exDef.rirTarget>=0 && exDef.rirTarget<=5;
+  if(customRir && !deload)rirMin=rirMax=exDef.rirTarget;
+  const finalRir=!customRir && isolation && phase.name==='Peak'?0:rirMin;
   const rir=rirMin===rirMax?String(rirMin):rirMin+'–'+rirMax;
   const rpe=rirMin===rirMax?String(10-rirMin):(10-rirMax)+'–'+(10-rirMin);
   return {phase:phase.name,plannedSets:planned,sets:deload?Math.max(1,Math.ceil(planned/2)):planned,
     deload,rirMin,rirMax,finalRir,effort:rir+' RIR · approx. RPE '+rpe+
-      (finalRir===0?' · final isolation set may reach 0 RIR / RPE 10':''),
-    partialsAllowed:!deload && isolation && phase.name==='Peak' && !!exDef.finalPartials};
+      (!customRir && finalRir===0?' · final isolation set may reach 0 RIR / RPE 10':''),
+    partialsAllowed:!deload && finalRir===0 && isolation && phase.name==='Peak' && !!exDef.finalPartials};
 }
 function computeRecommendation(exDef, lastLog, options={}){
   const context=getCoachingPrescription(exDef,options?.weekNumber ?? getWeekNumber());

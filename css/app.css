@@ -247,3 +247,14 @@ a.linklike{color:var(--accent);text-decoration:none;font-weight:700;font-size:13
 .progress-table th{color:var(--text-dim);font-weight:600;}
 .progress-table td:nth-child(2){white-space:nowrap;}
 .pr-item{gap:10px;}.pr-item>div{min-width:0;}.prval{font-size:15px;}
+
+.programme-actions{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px;}
+.programme-actions button{padding:8px 10px;background:var(--surface-3);border:1px solid var(--line);border-radius:8px;color:var(--text);}
+.programme-actions button:disabled{opacity:.4;}
+.programme-fields{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:10px;}
+.programme-check{display:flex;align-items:center;gap:8px;font-size:13px;margin:12px 0 18px;}
+.programme-check input{width:22px;height:22px;accent-color:var(--teal);}
+.day-editor-row{gap:8px;flex-wrap:wrap;}.day-editor-row .exname{min-width:0;flex:1 1 180px;}.day-editor-row .arrows{flex-wrap:wrap;}
+.day-editor-row .arrows{max-width:100%;}
+.day-editor-row .arrows button{width:auto;min-width:44px;height:44px;padding:0 8px;}
+.programme-actions button{min-height:40px;}

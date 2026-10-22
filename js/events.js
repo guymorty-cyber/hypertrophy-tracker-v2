@@ -3,12 +3,14 @@ function attachTabEvents(){
   document.querySelectorAll('[data-action]').forEach(el=>{
     const action = el.dataset.action;
     if(el._bound) return; // avoid dup (elements are recreated each render so fine, but guard anyway)
-    if(action==='installApp'){
+    if(action==='addProgrammeDay'){
+      el.onclick=()=>openProgrammeDayModal();
+    }else if(action==='installApp'){
       el.onclick = ()=>installApp();
     }else if(action==='startToday'){
       el.onclick = ()=>{ startSession(getTodayProgramDay()); };
     }else if(action==='startRestDay'){
-      el.onclick = ()=> startRestDay();
+      el.onclick = ()=> startRestDay(getNextProgramIndex());
     }else if(action==='logRestDay'){
       el.onclick = ()=> logRestDay();
     }else if(action==='gotoTrain'){
@@ -17,7 +19,7 @@ function attachTabEvents(){
       el.onclick = ()=>{
         const idx = parseInt(document.getElementById('dayPicker').value);
         const day = DATA.program[idx];
-        if(day && day.type==='rest') startRestDay();
+        if(day && day.type==='rest') startRestDay(idx);
         else startSession(idx);
       };
     }else if(action==='cancelSession'){

@@ -8,7 +8,7 @@ function log(h){return h.app.data.activeSession.exercises[0];}
 function complete(h,i=0){const id=log(h).exerciseId;h.app.updateSetField(id,i,'weight',30);h.app.updateSetField(id,i,'reps',10);h.app.toggleSetComplete(id,i,true);}
 function edit(h,overrides={}){
   const ex=h.app.data.program[0].exercises[0];h.app.openExerciseEditModal(0,ex.id);
-  for(const [id,value] of Object.entries({fEditName:ex.name,fEditSets:ex.sets,fEditRepMin:ex.repMin,fEditRepMax:ex.repMax,fEditRest:ex.restSec,fEditInc:ex.inc,fEditNote:ex.note||'',...overrides}))h.element(id).value=String(value);
+  for(const [id,value] of Object.entries({fEditName:ex.name,fEditSets:ex.sets,fEditRepMin:ex.repMin,fEditRepMax:ex.repMax,fEditRest:ex.restSec,fEditInc:ex.inc,fEditNote:ex.note||'',fEditCategory:ex.cat||'moderate',fEditRir:ex.rirTarget??'',fEditTempo:ex.tempo||'',fEditAlts:(ex.alts||[]).join('\n'),...overrides}))h.element(id).value=String(value);
   h.element('fEditSave').onclick();
 }
 test('Programme edits preserve completed sets and active coaching settings, including after reopening',()=>{
