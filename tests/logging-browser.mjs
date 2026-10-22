@@ -51,7 +51,7 @@ try{
       assert((await first.locator('.ex-title').innerText()).includes('Incline Dumbbell Press'));
       await first.locator('[data-field="reps"]').last().fill('2.5');
       await first.locator('[data-action="toggleComplete"]').last().uncheck();
-      await first.locator('[data-action="toggleComplete"]').last().check();
+      await first.locator('[data-action="toggleComplete"]').last().click();
       assert.equal(await first.locator('[data-action="toggleComplete"]').last().isChecked(),false);
       await first.locator('[data-field="reps"]').last().fill('10');
       await first.locator('[data-action="toggleComplete"]').last().check();
