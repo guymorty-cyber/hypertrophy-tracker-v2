@@ -4,7 +4,7 @@ let storageBlocked = false;
 let unsavedChanges = false;
 let saveMessage = '';
 let recoveryRaw = null;
-let deletedWorkout = null;
+let deletedWorkouts = [];
 
 function validateData(value){
   const fail = ()=>{ throw new Error('This file is not a valid Hypertrophy Tracker backup.'); };
@@ -130,7 +130,7 @@ function restoreBackup(){
     restored.restEndAt=null;
     if(!confirm('Restore the previous saved snapshot? Export your current data first if you need to keep it.')) return;
     if(!commitData(restored,true)) return;
-    deletedWorkout=null;
+    deletedWorkouts=[];
     document.getElementById('undoPanel').hidden=true;
     DATA.restEndAt=null;
     stopRestTimer(false); closeModal(); renderTab();

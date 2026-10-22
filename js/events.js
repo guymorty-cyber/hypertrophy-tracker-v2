@@ -64,9 +64,11 @@ function attachTabEvents(){
     }else if(action==='exportData'){
       el.onclick = ()=> exportData();
     }else if(action==='resetData'){
-      el.onclick = ()=>{ if(confirm('This will erase ALL data permanently. Continue?')){ if(confirm('Are you absolutely sure?')){ if(commitData(defaultData(),true)){ deletedWorkout=null; document.getElementById('undoPanel').hidden=true; stopRestTimer(false); closeModal(); renderTab(); } } } };
+      el.onclick = ()=>{ if(confirm('This will erase ALL data permanently. Continue?')){ if(confirm('Are you absolutely sure?')){ if(commitData(defaultData(),true)){ deletedWorkouts=[]; document.getElementById('undoPanel').hidden=true; stopRestTimer(false); closeModal(); renderTab(); } } } };
     }else if(action==='deleteWorkout'){
       el.onclick = event=>{ event.stopPropagation(); deleteWorkout(el.dataset.sid); };
+    }else if(action==='editHistory'){
+      el.onclick=event=>{event.stopPropagation();openHistoryEditor(el.dataset.sid);};
     }else if(action==='viewSession'){
       el.onclick = ()=> openSessionDetail(el.dataset.sid);
     }

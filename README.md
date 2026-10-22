@@ -36,11 +36,13 @@ python scripts/build_pages.py --build FULL_40_CHARACTER_COMMIT_SHA
 node tests/regression.cjs
 node tests/coaching.cjs
 node tests/logging.cjs
+node tests/history.cjs
 npm install --no-save --package-lock=false playwright@1.56.1
 npx playwright install --with-deps chromium webkit
 node tests/browser-smoke.mjs
 node tests/coaching-browser.mjs
 node tests/logging-browser.mjs
+node tests/history-browser.mjs
 node tests/pwa.mjs
 python -m http.server --directory dist 8080
 ```
@@ -60,3 +62,5 @@ Set the repository's Pages Source to **GitHub Actions** so the old branch publis
 See `ROADMAP.md` for the agreed ten development phases and acceptance evidence. Phase 1 coaching uses each exercise's programmed increment, explicit per-set targets, phase/category RIR and approximate RPE guidance, reduced deload set counts, and conservative handling of incomplete or mixed-load history. Effort targets are guidance; the app does not infer actual RIR/RPE from reps alone. The saved workout's starting week is used after recovery. Programme exercise selection itself is reviewed in Phase 5.
 
 Phase 2 protects active workouts from programme edits using saved exercise settings; changes in the editor apply to future workouts. Swapping requires no entered sets, and finishing an incomplete workout requires confirmation. Invalid numeric edits uncheck the affected set rather than retaining an older value. Existing history remains under the same storage key and URL.
+
+Phase 3 adds saved-workout corrections from History/details, search by names/dates/notes, same-day ordering and repeated deletion Undo until reload. History edits stay in a separate draft until Save succeeds. Totals and PR badges refresh from valid completed sets, with variations kept separate. Correcting historical performance affects the next coaching recommendation. Export/import uses the existing JSON format and storage key.

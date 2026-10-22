@@ -220,16 +220,12 @@ function finishWorkoutFlow(){
   sess.totalSets=completed.length;
   sess.totalReps=completed.reduce((n,s)=>n+s.reps,0);
   sess.totalVolume=completed.reduce((n,s)=>n+s.weight*s.reps,0);
-  sess.newPRs=sess.exercises.filter(e=>{
-    const previous=getPRFor(e.exerciseId);
-    const best=Math.max(0,...e.sets.filter(s=>s.completed && s.weight>0).map(s=>estOneRM(s.weight,s.reps)));
-    return best>0 && (!previous || best>estOneRM(previous.bestE1RM.weight,previous.bestE1RM.reps));
-  }).map(e=>e.name);
-  const candidate={...DATA,sessions:[...DATA.sessions,sess],activeSession:null,restEndAt:null};
+  const sessions=rebuildHistory([...DATA.sessions,sess]);
+  const candidate={...DATA,sessions,activeSession:null,restEndAt:null};
   if(isLower) candidate.pendingNextMorning={sessionId:sess.id,dayName:sess.dayName,date:sess.date};
   if(!commitData(candidate)) return;
   stopRestTimer(false);
-  showSummaryModal(sess);
+  showSummaryModal(sessions.find(s=>s.id===sess.id));
 }
 
 function showSummaryModal(sess){
@@ -285,10 +281,10 @@ function openNextMorningModal(){
 }
 
 function openSessionDetail(sid){
-  const s = DATA.sessions.find(x=>x.id===sid);
+  const s = rebuildHistory(DATA.sessions).find(x=>String(x.id)===String(sid));
   if(!s) return;
   const exHtml = s.exercises.map(e=>{
-    const rows = e.sets.filter(st=>st.completed).map((st,i)=>`<div class="hist-row-mini"><span>Set ${i+1}</span><span class="sets">${st.weight}kg × ${st.reps}</span></div>`).join('');
+    const rows = e.sets.map((st,i)=>st.completed?`<div class="hist-row-mini"><span>Set ${i+1}</span><span class="sets">${st.weight}kg × ${st.reps}</span></div>`:'').join('');
     return `<div style="margin-bottom:12px;">
       <div style="font-weight:700;font-size:14px;margin-bottom:2px;">${escapeHtml(e.name)}</div>
       ${rows || '<div class="empty" style="padding:6px 0;">No completed sets</div>'}
@@ -298,7 +294,7 @@ function openSessionDetail(sid){
   const sDayIdx = DATA.program.findIndex(d=>d.id===s.dayId);
   showModal(`
     <h2>${sDayIdx>-1?'Day '+(sDayIdx+1)+' — ':''}${escapeHtml(s.dayName)}</h2>
-    <div class="sub">${fmtDateFull(s.date)} · Week ${s.weekNumber} · ${escapeHtml(s.phase)}</div>
+    <div class="sub">${fmtDateFull(s.date)} · Week ${escapeHtml(s.weekNumber??'—')} · ${escapeHtml(s.phase)}</div>
     <div class="summary-grid">
       <div class="summary-box"><div class="big">${s.durationSec?Math.floor(s.durationSec/60):'—'}min</div><div class="lbl">Duration</div></div>
       <div class="summary-box"><div class="big">${s.totalSets}</div><div class="lbl">Sets</div></div>
@@ -312,6 +308,9 @@ function openSessionDetail(sid){
     <div class="divider"></div>
     ${exHtml}
     ${s.notes ? `<div class="divider"></div><div style="font-size:13px;color:var(--text-dim);"><strong>Notes:</strong> ${escapeHtml(s.notes)}</div>` : ''}
+    <div class="history-edit-actions"><button class="btn btn-outline" id="detailEdit">Edit workout</button><button class="btn btn-danger-outline" id="detailDelete">Delete workout</button></div>
     <button class="btn btn-ghost" data-action="closeModal" style="margin-top:10px;">Close</button>
   `);
+  document.getElementById('detailEdit').onclick=()=>openHistoryEditor(s.id);
+  document.getElementById('detailDelete').onclick=()=>{if(deleteWorkout(s.id)) closeModal();};
 }
