@@ -316,3 +316,8 @@ body.entry-editing:has(#resttimer.show){padding-bottom:calc(var(--nav-height) + 
 .home-setting,.programme-check{min-height:44px;}
 
 body.modal-open #entryToolbar{bottom:var(--keyboard-inset);}
+
+/* Reserve control space consistently so focus changes cannot move a tapped button. */
+.searchbox{font-size:16px;}
+body,body:has(#resttimer.show),body.entry-editing,body.entry-editing:has(#resttimer.show){padding-bottom:calc(var(--nav-height) + 144px + var(--keyboard-inset));}
+.modal,body.entry-editing .modal{padding-bottom:calc(90px + env(safe-area-inset-bottom));}
