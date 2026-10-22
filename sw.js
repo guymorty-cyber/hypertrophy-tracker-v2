@@ -47,7 +47,7 @@ self.addEventListener('fetch',event=>{
   }
   if(assetURLs.has(url.href)){
     event.respondWith((async()=>{
-      const cached=await caches.match(request);
+      const cached=await (await caches.open(CACHE)).match(request);
       return cached || fetch(request);
     })());
   }
