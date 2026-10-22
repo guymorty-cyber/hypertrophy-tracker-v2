@@ -53,11 +53,12 @@ test('A performance drop holds the load and explains the actual comparison',()=>
   const r=rec(h,latest);assert.equal(r.type,'maintain');assert(r.detail.includes('30 → 21'));
 });
 test('Zero external load remains bodyweight, not missing history or a fabricated weight increase',()=>{
-  const h=setup(),r=rec(h,log([10,10,10],0));assert.equal(r.nextWeight,0);assert.notEqual(r.type,'up');
+  const h=setup(),r=rec(h,log([10,10,10],0));assert.equal(r.nextWeight,0);assert.equal(r.type,'maintain');
   assert(r.detail.includes('Bodyweight'));assert(r.prescription.every(s=>s.weight===0));
 });
 test('Zero increments and fractional equipment increments are respected exactly',()=>{
   const h=setup();assert.equal(h.app.computeRecommendation({...h.ex,inc:0},log([10,10,10])).nextWeight,40);
+  assert.equal(h.app.computeRecommendation({...h.ex,inc:0},log([10,10,10])).type,'maintain');
   assert.equal(h.app.computeRecommendation({...h.ex,inc:0.1},log([10,10,10],40.3)).nextWeight,40.4);
 });
 test('Effort guidance follows compound, isolation and training phase rules',()=>{
@@ -80,6 +81,8 @@ test('Deload prescribes fewer sets and 3–4 RIR without progressing loads or pa
 });
 test('Recovery keeps the workout start phase instead of changing recommendations mid-session',()=>{
   const h=setup();h.app.startSession(0);h.state.clock+=28*86400000;
+  h.app.startSession(1);
+  assert(h.element('phaseLabel').textContent.includes('Week 1 · Calibration'));
   const html=h.app.renderActiveSession();assert(html.includes('Today’s prescription · Calibration'));
   assert(!html.includes('Today’s prescription · Deload'));
 });

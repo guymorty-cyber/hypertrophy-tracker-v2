@@ -89,6 +89,7 @@ function computeRecommendation(exDef, lastLog, options={}){
       type='reps';
       const target=prescription.find(set=>set.reps<max);
       if(target) target.reps++;
+      else type='maintain';
       reason=target?'Keep the load and aim for one more total rep across the planned sets before adding weight.':
         (weight===0?'Bodyweight sets: maintain the rep standard. No external load is inferred from a 0 kg entry.':
         'The rep target is met, but this exercise has no positive load increment. Keep the load until you set an equipment-appropriate increment.');
