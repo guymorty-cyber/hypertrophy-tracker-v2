@@ -46,6 +46,7 @@ try{
       await page.locator('#fEditRest').fill('0');
       await page.locator('#fEditInc').fill('0');
       await page.locator('#fEditSave').click();
+      assert.equal(await page.locator('#overlay').isVisible(),false,'Save must close the future-workout editor');
       assert.equal(await first.locator('[data-action="toggleComplete"]').count(),sets);
       assert.equal(await first.locator('[data-action="toggleComplete"]').last().isChecked(),true);
       assert((await first.locator('.ex-title').innerText()).includes('Incline Dumbbell Press'));

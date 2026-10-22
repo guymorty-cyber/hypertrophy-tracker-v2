@@ -41,6 +41,7 @@ node tests/progress.cjs
 node tests/programme.cjs
 node tests/adaptive.cjs
 node tests/dashboard.cjs
+node tests/mobile.cjs
 npm install --no-save --package-lock=false playwright@1.56.1
 npx playwright install --with-deps chromium webkit
 node tests/browser-smoke.mjs
@@ -51,6 +52,7 @@ node tests/progress-browser.mjs
 node tests/programme-browser.mjs
 node tests/adaptive-browser.mjs
 node tests/dashboard-browser.mjs
+node tests/mobile-browser.mjs
 node tests/pwa.mjs
 python -m http.server --directory dist 8080
 ```
@@ -80,3 +82,5 @@ Phase 5 expands More → Programme Builder to manage training/rest days and exer
 Phase 6 adds explainable checks for comparable-workout stalls/declines plus optional workout readiness and final-planned-set RIR. Missing feedback is not inferred. Lower readiness holds progression today; repeated comparable effort misses without rep progress can use one programmed reduction. Deload retains its own rules. History can correct these reports, and analytics/coaching recompute from saved logs. Thresholds are explicit app heuristics, not a recovery measurement or medical assessment.
 
 Phase 7 adds a personalised Home with active-workout continuation, a Monday–Sunday training summary, an optional weekly goal, configurable summary cards, evidence-based training priorities and working quick logging links. Progress now shares charts and records for the same exercise name across days (ignoring case and whitespace). Different movement names stay separate. Each day retains its own prescription and coaching target. Saved history and IDs are not migrated or renamed.
+
+Phase 8 improves phone input sizes and touch targets, allows pinch zoom, adds Previous/Next/Done entry controls and fits dialogs above the on-screen keyboard. Input navigation never checks a set or changes training data. More → App & offline reports launch mode, offline readiness and the current release, with a bounded manual update check. Installation help recognises an existing Home Screen app and explains exporting/importing when moving between Safari and an installed app. Automated Chromium/WebKit tests cover these paths; the actual iPhone keyboard, Share sheet, Home Screen launch and OS backgrounding still require an on-device check.

@@ -3,7 +3,9 @@ function attachTabEvents(){
   document.querySelectorAll('[data-action]').forEach(el=>{
     const action = el.dataset.action;
     if(el._bound) return; // avoid dup (elements are recreated each render so fine, but guard anyway)
-    if(action==='personaliseDashboard'){
+    if(action==='checkAppUpdate'){
+      el.onclick=()=>checkAppStatus();
+    }else if(action==='personaliseDashboard'){
       el.onclick=()=>openDashboardPreferences();
     }else if(action==='homeNavigate'){
       el.onclick=()=>setTab(el.dataset.tab);

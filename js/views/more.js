@@ -4,7 +4,8 @@ function renderMore(){
   const weekAvg = computeWeeklyAvg();
   const nutritionAdvice = computeNutritionAdvice();
   return `
-    <h2 class="section" style="margin-top:0;">Bodyweight</h2>
+    ${renderAppExperience()}
+    <h2 class="section">Bodyweight</h2>
     <div class="card">
       <div class="field" style="margin-bottom:10px;">
         <label>Log today's weight (kg)</label>

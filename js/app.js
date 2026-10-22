@@ -21,4 +21,5 @@ if(DATA.activeSession && typeof DATA.restEndAt==='number' && DATA.restEndAt>Date
   restTimerState.interval=setInterval(updateRestTimerFromClock,250);
 }
 
+setupMobile();
 setupPWA();

@@ -119,7 +119,7 @@ function renderExerciseBlock(ex, log, lastLog, rec,number=exNumber(ex.id)){
         <input type="number" min="1" step="1" aria-label="Repetitions" inputmode="numeric" placeholder="${prevSet?prevSet.reps:'reps'}" value="${s.reps||''}" data-action="setField" data-exid="${ex.id}" data-setidx="${i}" data-field="reps">
         ${prevSet?`<span class="prevmini">prev ${prevSet.reps}</span>`:''}
       </div>
-      <div class="checkwrap"><input aria-label="Complete set" type="checkbox" ${s.completed?'checked':''} data-action="toggleComplete" data-exid="${ex.id}" data-setidx="${i}"></div>
+      <label class="checkwrap"><input aria-label="Complete set" type="checkbox" ${s.completed?'checked':''} data-action="toggleComplete" data-exid="${ex.id}" data-setidx="${i}"></label>
     </div>`;
   }).join('');
 
