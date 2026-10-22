@@ -97,6 +97,7 @@ h2.section:first-child{margin-top:0;}
 .ex-target{font-size:12.5px;color:var(--text-dim);}
 .ex-note{font-size:12px;color:var(--teal);margin-top:6px;line-height:1.4;}
 .ex-actions{display:flex;gap:8px;margin-top:10px;flex-wrap:wrap;}
+.ex-actions button:disabled{opacity:.4;cursor:default;}
 .ex-actions button{font-size:11.5px;padding:6px 10px;border-radius:8px;background:var(--surface-3);border:none;color:var(--text-dim);}
 .prev-line{font-size:12px;color:var(--text-faint);margin-top:4px;}
 .setrow{display:grid;grid-template-columns:34px 1fr 1fr 34px;gap:8px;align-items:center;
@@ -583,14 +584,21 @@ function getPRFor(exId){
   });
   return {heaviest, bestE1RM, byWeight, all:sets};
 }
-function lastSessionFor(exId){
-  const dates = allCompletedSetsFor(exId);
-  if(!dates.length) return null;
-  const lastDate = dates[dates.length-1].sessionId;
-  const s = DATA.sessions.find(x=>x.id===lastDate);
-  if(!s) return null;
-  const exLog = s.exercises.find(e=>e.exerciseId===exId);
-  return {session:s, log:exLog};
+function usablePreviousSet(set){
+  return set.completed && Number.isFinite(set.weight) && set.weight>=0 &&
+    Number.isInteger(set.reps) && set.reps>0;
+}
+function lastSessionFor(exId, displayName=null){
+  // Date alone cannot distinguish two workouts logged on the same day.
+  const sessions=DATA.sessions.slice().sort((a,b)=>
+    a.date.localeCompare(b.date) || (a.startedAt||0)-(b.startedAt||0));
+  for(let i=sessions.length-1;i>=0;i--){
+    const session=sessions[i];
+    const log=session.exercises.find(e=>e.exerciseId===exId &&
+      (displayName===null || e.name===displayName));
+    if(log && log.sets.some(usablePreviousSet)) return {session,log};
+  }
+  return null;
 }
 function exerciseIndexPath(exId){
   for(let di=0; di<DATA.program.length; di++){
@@ -641,10 +649,13 @@ function computeRecommendation(exDef, lastLog){
 
   // Compare the most recent session with the preceding comparable session when available.
   let priorComparable = null;
-  const sessions = (DATA.sessions || []).slice().sort((a,b)=>a.date<b.date?-1:1);
-  for(let i=sessions.length-1;i>=0;i--){
-    const exLog = sessions[i].exercises && sessions[i].exercises.find(e=>e.exerciseId===exDef.id);
-    if(!exLog || sessions[i].id===lastLog.session.id) continue;
+  const sessions = DATA.sessions.slice().sort((a,b)=>
+    a.date.localeCompare(b.date) || (a.startedAt||0)-(b.startedAt||0));
+  // lastLog is an exercise log, not the {session, log} lookup wrapper.
+  const lastIndex=sessions.findIndex(s=>s.exercises.includes(lastLog));
+  for(let i=lastIndex-1;i>=0;i--){
+    const exLog = sessions[i].exercises.find(e=>e.exerciseId===exDef.id && e.name===lastLog.name);
+    if(!exLog) continue;
     const sets = (exLog.sets||[]).filter(st=>st.completed && Number(st.weight)>0 && Number(st.reps)>0);
     if(sets.length){ priorComparable = {sets, session:sessions[i]}; break; }
   }
@@ -907,7 +918,7 @@ function renderActiveSession(){
       log = {exerciseId:ex.id, name:ex.name, notes:'', sets:Array.from({length:ex.sets}, ()=>({weight:null,reps:null,completed:false}))};
       sess.exercises.push(log);
     }
-    const lastLog = lastSessionFor(ex.id);
+    const lastLog = lastSessionFor(ex.id,log.name);
     const rec = computeRecommendation(ex, lastLog && lastLog.log);
     return renderExerciseBlock(ex, log, lastLog, rec);
   }).join('');
@@ -963,6 +974,8 @@ function renderExerciseBlock(ex, log, lastLog, rec){
     prevLine = `<div class="prev-line">Last time (${fmtDate(lastLog.session.date)}): ${setsStr||'—'}</div>`;
   }
   const altBtn = ex.alts && ex.alts.length ? `<button data-action="openAlts" data-exid="${ex.id}">Swap exercise</button>` : '';
+  const canCopy = lastLog && log.sets.some((set,i)=>!set.completed &&
+    (set.weight===null || set.reps===null) && lastLog.log.sets[i] && usablePreviousSet(lastLog.log.sets[i]));
   const setsRows = log.sets.map((s,i)=>{
     const prevSet = lastLog && lastLog.log && lastLog.log.sets[i] ? lastLog.log.sets[i] : null;
     return `<div class="setrow">
@@ -989,7 +1002,7 @@ function renderExerciseBlock(ex, log, lastLog, rec){
   return `<div class="ex-card">
     <div class="ex-head">
       <h3 class="ex-title">${exNumber(ex.id)}. ${escapeHtml(ex.name)}</h3>
-      <div class="ex-target">${ex.sets} sets · ${ex.repMin}–${ex.repMax} reps${ex.perLeg?' each leg':''} · Rest ${Math.round(ex.restSec/60*10)/10>=1?Math.round(ex.restSec/60)+' min':ex.restSec+'s'}</div>
+      <div class="ex-target">${log.sets.length} sets today${log.sets.length!==ex.sets?' ('+ex.sets+' planned)':''} · ${ex.repMin}–${ex.repMax} reps${ex.perLeg?' each leg':''} · Rest ${Math.round(ex.restSec/60*10)/10>=1?Math.round(ex.restSec/60)+' min':ex.restSec+'s'}</div>
       ${ex.note?`<div class="ex-note">${escapeHtml(ex.note)}</div>`:''}
       ${ex.finalPartials?`<div class="ex-note">Final set: after technical failure, 4–8 controlled lengthened partials.</div>`:''}
       ${prevLine}
@@ -997,10 +1010,10 @@ function renderExerciseBlock(ex, log, lastLog, rec){
         <button data-action="startRest" data-sec="${ex.restSec}">Start rest timer</button>
         ${altBtn}
         <button data-action="editExFromWorkout" data-exid="${ex.id}">Edit exercise</button>
+        ${lastLog?`<button data-action="useLastSession" data-exid="${ex.id}" ${canCopy?'':'disabled'} title="Fill empty fields from completed sets. Review before marking complete.">Use last session</button>`:''}
+        <button data-action="addSet" data-exid="${ex.id}" ${log.sets.length>=100?'disabled':''}>+ Add set</button>
+        <button data-action="removeSet" data-exid="${ex.id}" ${log.sets.length<=1 || log.sets[log.sets.length-1].completed?'disabled':''}>Remove last set</button>
       </div>
-    </div>
-    <div class="setrow" style="border-top:none;padding-top:0;padding-bottom:0;color:var(--text-faint);font-size:11px;">
-      <div></div><div style="text-align:center;">Weight kg</div><div style="text-align:center;">Reps</div><div></div>
     </div>
     <div class="setlabels"><span>Set</span><span>kg</span><span>Reps</span><span>Done</span></div>
     ${setsRows}
@@ -1250,6 +1263,12 @@ function attachTabEvents(){
       el.oninput = ()=>{ updateSetField(el.dataset.exid, parseInt(el.dataset.setidx), el.dataset.field, el.value); };
     }else if(action==='toggleComplete'){
       el.onchange = ()=>{ toggleSetComplete(el.dataset.exid, parseInt(el.dataset.setidx), el.checked); };
+    }else if(action==='useLastSession'){
+      el.onclick = ()=> useLastSession(el.dataset.exid);
+    }else if(action==='addSet'){
+      el.onclick = ()=> addWorkoutSet(el.dataset.exid);
+    }else if(action==='removeSet'){
+      el.onclick = ()=> removeWorkoutSet(el.dataset.exid);
     }else if(action==='workoutNotes'){
       el.oninput = ()=>{ if(DATA.activeSession){ DATA.activeSession.notes=el.value; save(); } };
     }else if(action==='exNotes'){
@@ -1472,6 +1491,46 @@ function startSession(dayIdx){
 function newSessionId(){ return 'sess_'+(typeof crypto!=='undefined' && crypto.randomUUID ? crypto.randomUUID() : Date.now()+'_'+Math.random().toString(36).slice(2)); }
 function getActiveExLog(exId){
   return DATA.activeSession.exercises.find(e=>e.exerciseId===exId);
+}
+function editWorkoutSets(exId, edit){
+  if(!DATA.activeSession) return false;
+  const activeSession=JSON.parse(JSON.stringify(DATA.activeSession));
+  const log=activeSession.exercises.find(e=>e.exerciseId===exId);
+  if(!log || !edit(log) || !commitData({...DATA,activeSession})) return false;
+  renderTab();
+  return true;
+}
+function addWorkoutSet(exId){
+  return editWorkoutSets(exId,log=>{
+    if(log.sets.length>=100) return false;
+    log.sets.push({weight:null,reps:null,completed:false});
+    return true;
+  });
+}
+function removeWorkoutSet(exId){
+  return editWorkoutSets(exId,log=>{
+    if(log.sets.length<=1) return false;
+    const last=log.sets[log.sets.length-1];
+    if(last.completed) return false;
+    if((last.weight!==null || last.reps!==null) && !confirm('Remove the last set and its entered weight and reps?')) return false;
+    log.sets.pop();
+    return true;
+  });
+}
+function useLastSession(exId){
+  return editWorkoutSets(exId,log=>{
+    const previous=lastSessionFor(exId,log.name);
+    if(!previous) return false;
+    let changed=false;
+    log.sets.forEach((set,i)=>{
+      const source=previous.log.sets[i];
+      if(set.completed || !source || !usablePreviousSet(source)) return;
+      for(const field of ['weight','reps']){
+        if(set[field]===null){set[field]=source[field];changed=true;}
+      }
+    });
+    return changed;
+  });
 }
 function updateSetField(exId, setIdx, field, value){
   if(!DATA.activeSession || !['weight','reps'].includes(field)) return;
@@ -1897,3 +1956,4 @@ if(DATA.activeSession && typeof DATA.restEndAt==='number' && DATA.restEndAt>Date
 </script>
 </body>
 </html>
+

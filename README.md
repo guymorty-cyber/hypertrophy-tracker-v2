@@ -5,6 +5,8 @@ A mobile workout tracker built as a self-contained HTML app. The maintained sour
 ## Daily use
 
 - Start or resume a workout in Train. Weight, reps, exercise notes and workout notes save on input.
+- Use last session fills empty weight/reps fields from completed sets of the same exercise. It preserves entered values and requires you to mark each set complete. Same-day workouts are ordered by start time.
+- Add set and Remove last set adjust only the current workout. Completed sets are protected, and removing entered values requires confirmation. At least one set is retained.
 - Completing a valid set starts its exercise rest timer. Timers use a finish timestamp and recover after reopening.
 - Finish only reports success after the completed workout is saved.
 - History deletes by session ID. Undo restores the most recently deleted workout until the page is reloaded.
@@ -34,3 +36,4 @@ The Pages workflow runs both test suites before deploying main. It packages only
 The app checks for a newer build when it opens or becomes visible. Update app saves current state before navigating to a URL versioned with the new SHA. An old page predating this update mechanism may need a manual refresh once.
 
 The older patch scripts are retained for history; the deployment workflow no longer executes them.
+
