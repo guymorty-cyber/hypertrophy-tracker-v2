@@ -46,14 +46,16 @@ function estOneRM(weight,reps){
   if(!weight||!reps) return 0;
   return weight*(1+reps/30);
 }
+// A programme slot owns its prescription; a movement name owns shared records.
+// Exact normalised names only: never merge equipment or movement variants fuzzily.
+function movementKey(name){return String(name).trim().replace(/\s+/g,' ').toLowerCase();}
 function allCompletedSetsFor(exId,displayName=null){
   const out = [];
   for(const s of DATA.sessions){
-    const exLog = s.exercises.find(e=>e.exerciseId===exId && (displayName===null || e.name===displayName));
-    if(!exLog) continue;
-    exLog.sets.forEach((st,i)=>{
+    const logs=s.exercises.filter(e=>displayName===null?e.exerciseId===exId:movementKey(e.name)===movementKey(displayName));
+    for(const exLog of logs)exLog.sets.forEach((st,i)=>{
       if(usablePreviousSet(st)){
-        out.push({date:s.date,startedAt:s.startedAt,sessionId:s.id,weight:st.weight,reps:st.reps,setIndex:i});
+        out.push({date:s.date,startedAt:s.startedAt,sessionId:s.id,dayName:s.dayName,exerciseId:exLog.exerciseId,weight:st.weight,reps:st.reps,setIndex:i});
       }
     });
   }

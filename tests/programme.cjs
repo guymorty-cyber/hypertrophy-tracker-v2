@@ -12,13 +12,13 @@ test('Day create, rename and reorder preserve IDs, logs and the programme start 
  assert(h.app.saveProgrammeDay(null,{name:'Custom lower',type:'training',isLower:true}));const added=h.app.data.program.at(-1);assert.equal(added.exercises.length,0);
  assert(h.app.saveProgrammeDay(id,{name:'Upper renamed',type:'training',isLower:false},JSON.stringify(day)));assert.equal(h.app.data.program[0].id,id);assert(h.app.moveProgrammeDay(id,1));assert.equal(h.app.data.program[1].id,id);assert.equal(h.app.data.programStartDate,date);assert.deepEqual(h.app.data.sessions,logs);
 });
-test('Copy day gives every exercise a new identity without copying historical performance',()=>{
+test('Copy day gives every exercise a new slot while sharing same-movement records',()=>{
  const h=setup();history(h);const day=h.app.data.program[0];assert(h.app.duplicateProgrammeDay(day.id));const copy=h.app.data.program[1];assert.notEqual(copy.id,day.id);assert.equal(copy.name,day.name+' copy');assert.equal(copy.exercises.length,day.exercises.length);
- const ids=h.app.data.program.flatMap(d=>[d.id,...d.exercises.map(e=>e.id)]);assert.equal(new Set(ids).size,ids.length);assert.equal(h.app.getPRFor(copy.exercises[0].id),null);
+ const ids=h.app.data.program.flatMap(d=>[d.id,...d.exercises.map(e=>e.id)]);assert.equal(new Set(ids).size,ids.length);assert.equal(h.app.getPRFor(copy.exercises[0].id),null);assert.equal(h.app.getPRFor(copy.exercises[0].id,copy.exercises[0].name).heaviest.weight,30);
 });
 test('Day deletion retains History/Progress, refuses the active day and keeps a final day',()=>{
  const h=setup(),logs=history(h),day=h.app.data.program[0];h.app.startSession(0);assert.equal(h.app.deleteProgrammeDay(day.id),false);assert(h.app.data.activeSession);
- h.app.commitData({...h.app.data,activeSession:null});assert(h.app.deleteProgrammeDay(day.id));assert.deepEqual(h.app.data.sessions,logs);assert(h.app.progressExercises().some(e=>e.id===day.exercises[0].id && !e.current));
+ h.app.commitData({...h.app.data,activeSession:null});assert(h.app.deleteProgrammeDay(day.id));assert.deepEqual(h.app.data.sessions,logs);const shared=h.app.progressExercises().find(e=>e.key===h.app.movementKey(day.exercises[0].name));assert(shared && shared.current && shared.days.includes(day.name));assert.equal(h.app.exerciseProgress(shared.id,shared.name).length,1);
  h.app.commitData({...h.app.data,program:[h.app.data.program[0]]});assert.equal(h.app.deleteProgrammeDay(h.app.data.program[0].id),false);
 });
 test('Day mutation fails atomically on full storage, cancellation and stale tabs',()=>{

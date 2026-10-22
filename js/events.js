@@ -3,7 +3,13 @@ function attachTabEvents(){
   document.querySelectorAll('[data-action]').forEach(el=>{
     const action = el.dataset.action;
     if(el._bound) return; // avoid dup (elements are recreated each render so fine, but guard anyway)
-    if(action==='addProgrammeDay'){
+    if(action==='personaliseDashboard'){
+      el.onclick=()=>openDashboardPreferences();
+    }else if(action==='homeNavigate'){
+      el.onclick=()=>setTab(el.dataset.tab);
+    }else if(action==='homeTrack' || action==='logNutritionToday'){
+      el.onclick=()=>{setTab('more');const input=document.getElementById(el.dataset.input||'calInput');if(input){input.scrollIntoView({block:'center'});input.focus();}};
+    }else if(action==='addProgrammeDay'){
       el.onclick=()=>openProgrammeDayModal();
     }else if(action==='installApp'){
       el.onclick = ()=>installApp();
@@ -63,7 +69,7 @@ function attachTabEvents(){
       el.onclick = ()=> finishWorkoutFlow();
     }else if(action==='logNextMorning'){
       el.onclick = ()=> openNextMorningModal();
-    }else if(action==='logNutritionToday' || action==='logNutrition'){
+    }else if(action==='logNutrition'){
       el.onclick = ()=> logNutrition();
     }else if(action==='logBodyweight'){
       el.onclick = ()=> logBodyweight();

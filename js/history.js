@@ -6,7 +6,7 @@ function rebuildHistory(sessions){
     const sets=session.exercises.flatMap(e=>e.sets).filter(usablePreviousSet);
     const newPRs=[];
     for(const ex of session.exercises){
-      const key=JSON.stringify([ex.exerciseId,ex.name]);
+      const key=movementKey(ex.name);
       const score=Math.max(0,...ex.sets.filter(usablePreviousSet).map(s=>estOneRM(s.weight,s.reps)));
       if(score>0 && score>(best.get(key)||0)){newPRs.push(ex.name);best.set(key,score);}
     }

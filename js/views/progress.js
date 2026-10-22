@@ -8,14 +8,16 @@ function progressCutoff(range=progressRange){return range==='all'?null:isoDay(ut
 function inProgressRange(date,range=progressRange){const cutoff=progressCutoff(range);return (!cutoff || date>=cutoff) && date<=todayISO();}
 function progressExercises(){
   const entries=new Map();
-  for(const day of DATA.program)for(const ex of day.exercises){
-    const name=ex.currentDisplay || ex.name,key=JSON.stringify([ex.id,name]);
-    entries.set(key,{key,id:ex.id,name,dayName:day.name,current:true,definition:ex});
-  }
-  for(const session of DATA.sessions)for(const log of session.exercises){
-    const key=JSON.stringify([log.exerciseId,log.name]);
-    if(!entries.has(key))entries.set(key,{key,id:log.exerciseId,name:log.name,dayName:session.dayName,current:false,definition:log.definition||null});
-  }
+  const add=(id,name,dayName,definition,current)=>{
+    const key=movementKey(name);
+    if(!entries.has(key))entries.set(key,{key,id,name,dayName:'',days:[],slots:[],current:false,definition});
+    const entry=entries.get(key);
+    if(!entry.days.includes(dayName))entry.days.push(dayName);
+    if(current){entry.current=true;entry.slots.push({id,name,dayName,definition});}
+    entry.dayName=entry.days.join(' / ');
+  };
+  for(const day of DATA.program)for(const ex of day.exercises)add(ex.id,ex.currentDisplay||ex.name,day.name,ex,true);
+  for(const session of DATA.sessions)for(const log of session.exercises)add(log.exerciseId,log.name,session.dayName,log.definition||null,false);
   return [...entries.values()];
 }
 function exerciseProgress(id,name,range=progressRange){
@@ -81,12 +83,15 @@ function renderProgress(){
   let detail='<div class="card"><div class="empty">No exercises match your search.</div></div>';
   if(selected){
     const rows=exerciseProgress(selected.id,selected.name),latest=rows.at(-1),previous=rows.at(-2);
-    const pr=getPRFor(selected.id,selected.name),last=lastSessionFor(selected.id,selected.name);
-    const rec=selected.current && last?computeRecommendation(selected.definition,last.log):null;
+    const pr=getPRFor(selected.id,selected.name);
+    const targets=selected.slots.map(slot=>{
+      const last=lastSessionFor(slot.id,slot.name),rec=computeRecommendation(slot.definition,last?.log);
+      return `<div class="progress-target"><strong>${escapeHtml(slot.dayName)}</strong> · ${slot.definition.sets} × ${slot.definition.repMin}–${slot.definition.repMax}<br>Next target: ${escapeHtml(rec.text)}</div>`;
+    }).join('');
     const series=rows.filter(row=>row[progressMetric]!==null).map(row=>({date:row.date,startedAt:row.startedAt,value:row[progressMetric]}));
     const delta=latest && previous && latest[progressMetric]!==null && previous[progressMetric]!==null?latest[progressMetric]-previous[progressMetric]:null;
     detail=`<div class="card" id="exerciseProgressDetail">
-      <h3 class="progress-title">${escapeHtml(selected.name)}</h3><div class="progress-caption">${escapeHtml(selected.dayName)}${selected.current?'':' · Historical variation / removed exercise'}</div>
+      <h3 class="progress-title">${escapeHtml(selected.name)}</h3><div class="progress-caption">${escapeHtml(selected.dayName)}${selected.current?' · Shared movement history':' · Historical variation / removed exercise'}</div>
       <label class="progress-caption" for="progressMetric">Chart measure</label><select id="progressMetric" class="searchbox">${Object.entries(metrics).map(([key,value])=>`<option value="${key}" ${key===progressMetric?'selected':''}>${value.title}</option>`).join('')}</select>
       <div class="svgwrap">${renderSparkline(series,{label:metric.title,unit:metric.unit})}</div>
       <div class="progress-caption">${progressMetric==='reps'?'Most reps in one completed set; compare loads in the table below.':progressMetric==='volume'?'Sum of recorded kg × reps; includes external load only.':progressMetric==='e1rm'?'Formula estimate from your best set, not a measured maximum. No external-load estimate for bodyweight-only sets.':'Heaviest completed load in each workout.'}</div>
@@ -98,11 +103,12 @@ function renderProgress(){
         <div class="metric"><div class="label">All-time estimated 1RM</div><div class="value">${pr && pr.bestE1RM.weight>0?progressNumber(estOneRM(pr.bestE1RM.weight,pr.bestE1RM.reps))+' kg':'—'}</div></div>
       </div>
       <div class="progress-caption">Best set is the highest estimated 1RM, or most reps at bodyweight. All-time records include dates outside the selected range.</div>
-      <div class="progress-next">${rec?`Next target: ${escapeHtml(rec.text)}`:selected.current?'Log this variation to get a next target.':'Historical records stay available; targets follow the current programme.'}</div>
+      <div class="progress-next">${targets||'Historical records stay available; targets follow the current programme.'}</div>
     </div>
-    <h2 class="section">Recent workouts · selected range</h2><div class="card progress-table-wrap">${rows.length?`<table class="progress-table"><thead><tr><th>Date</th><th>Completed sets</th><th>Volume</th></tr></thead><tbody>${rows.slice(-12).reverse().map(row=>`<tr><td>${fmtDate(row.date)}</td><td>${row.sets.map(s=>`${s.weight} kg × ${s.reps}`).join('<br>')}</td><td>${progressNumber(row.volume,0)} kg·reps</td></tr>`).join('')}</tbody></table>`:'<div class="empty">No completed workouts in this range.</div>'}</div>`;
+    <h2 class="section">Recent workouts · selected range</h2><div class="card progress-table-wrap">${rows.length?`<table class="progress-table"><thead><tr><th>Date / workout</th><th>Completed sets</th><th>Volume</th></tr></thead><tbody>${rows.slice(-12).reverse().map(row=>`<tr><td>${fmtDate(row.date)}<br><span class="progress-caption">${escapeHtml(row.sets[0].dayName)}</span></td><td>${row.sets.map(s=>`${s.weight} kg × ${s.reps}`).join('<br>')}</td><td>${progressNumber(row.volume,0)} kg·reps</td></tr>`).join('')}</tbody></table>`:'<div class="empty">No completed workouts in this range.</div>'}</div>`;
   }
   return `<h2 class="section" style="margin-top:0;">Progress</h2>
+    <p class="progress-caption">Matching exercise names share charts and records across days. Each day keeps its own prescription and next target. Rename a genuinely different variation to keep it separate.</p>
     <label class="progress-caption" for="progressRange">Date range</label><select class="searchbox" id="progressRange">${[['all','All history'],['90','Last 90 days'],['30','Last 30 days']].map(([value,label])=>`<option value="${value}" ${progressRange===value?'selected':''}>${label}</option>`).join('')}</select>
     <input class="searchbox" id="exSearch" aria-label="Search progress exercises" placeholder="Search exercise or workout…" value="${escapeHtml(exerciseFilterQuery)}">
     <select class="searchbox" id="exSelect" aria-label="Choose progress exercise">${filtered.map(e=>`<option value="${escapeHtml(e.key)}" ${e.key===selectedProgressExId?'selected':''}>${escapeHtml(e.name)} · ${escapeHtml(e.dayName)}${e.current?'':' (history)'}</option>`).join('')}</select>

@@ -69,6 +69,12 @@ function validateData(value){
   }
   if(value.bodyweight.some(b=>!object(b)||!date(b.date)||!number(b.weight)||b.weight<=0) ||
      value.nutrition.some(n=>!object(n)||!date(n.date)||!number(n.calories)||!number(n.protein))) fail();
+  if(value.dashboard!==undefined){
+    const p=value.dashboard;
+    if(!object(p) || !text(p.name) || p.name.length>60 ||
+      ![p.showBodyweight,p.showNutrition,p.showCoaching].every(v=>typeof v==='boolean') ||
+      (p.weeklyGoal!==null && (!Number.isInteger(p.weeklyGoal) || p.weeklyGoal<1 || p.weeklyGoal>14)))fail();
+  }
   const pending = value.pendingNextMorning;
   return {...defaultData(),...value,sessions,activeSession,
     pendingNextMorning:pending && sessions.some(s=>String(s.id)===String(pending.sessionId))?pending:null};

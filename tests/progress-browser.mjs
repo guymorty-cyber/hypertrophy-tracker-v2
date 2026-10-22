@@ -36,7 +36,7 @@ try{
     const set=(weight,reps,completed=true)=>({weight,reps,completed});
     const session=(id,days,start,sets,name=ex.name,exerciseId=ex.id)=>({id,date:date(days),startedAt:start,dayId:data.program[0].id,dayName:'Upper A',weekNumber:1,phase:'Calibration',notes:'',kneePain:{before:null,after:null,nextMorning:null},exercises:[{exerciseId,name,notes:'',sets}]});
     data.sessions=[session('z-old',1,100,[set(30,10),set(25,12)]),session('a-new',1,200,[set(35,8),set(30,10),set(999,99,false)]),session('variant',0,300,[set(100,10)],'Different press'),session('archived',2,400,[set(0,15)],'Removed bodyweight movement','deleted_ex'),session('outside',100,500,[set(40,6)])];
-    data.bodyweight=[{date:date(15),weight:73},{date:date(1),weight:74},{date:date(0),weight:74.2}];localStorage.setItem('htData_v1',JSON.stringify(data));return {key:JSON.stringify([ex.id,ex.name]),archived:JSON.stringify(['deleted_ex','Removed bodyweight movement']),variant:JSON.stringify([ex.id,'Different press'])};
+    data.bodyweight=[{date:date(15),weight:73},{date:date(1),weight:74},{date:date(0),weight:74.2}];localStorage.setItem('htData_v1',JSON.stringify(data));return {key:movementKey(ex.name),archived:movementKey('Removed bodyweight movement'),variant:movementKey('Different press')};
    });
    await page.reload();const before=await page.evaluate(()=>localStorage.getItem('htData_v1'));
    await page.locator('#navbar [data-tab="progress"]').click();
