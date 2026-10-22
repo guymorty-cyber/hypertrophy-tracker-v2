@@ -1,18 +1,19 @@
 /* ---------- session logic ---------- */
-function startRestDay(){
-  const restIdx = DATA.program.findIndex(d=>d.type==='rest');
+function startRestDay(dayIdx=null){
+  const restIdx = dayIdx!==null && DATA.program[dayIdx]?.type==='rest'?dayIdx:DATA.program.findIndex(d=>d.type==='rest');
   if(restIdx<0) return;
   if(DATA.activeSession){ setTab('train'); return; }
-  if(!commitData({...DATA,restDayOpen:true})) return;
+  if(!commitData({...DATA,restDayOpen:true,restDayId:DATA.program[restIdx].id})) return;
   setTab('train');
 }
 
 function renderRestDayScreen(){
+  const day=DATA.program.find(d=>d.id===DATA.restDayId && d.type==='rest') || DATA.program.find(d=>d.type==='rest');
   return `
     <div class="card" style="text-align:center;padding:30px 20px;background:linear-gradient(155deg,#202a2a,#1a2023);">
       <div style="font-size:54px;line-height:1;margin-bottom:14px;">😴</div>
       <div style="font-size:12px;color:var(--teal);font-weight:900;letter-spacing:.7px;">RECOVERY</div>
-      <h2 style="font-size:28px;margin:5px 0 8px;">REST DAY</h2>
+      <h2 style="font-size:28px;margin:5px 0 8px;">${escapeHtml(day?.name||'Rest day')}</h2>
       <p style="color:var(--text-dim);font-size:14px;line-height:1.5;margin:0 auto 20px;max-width:330px;">No sets. No reps. No workout. Recover, eat well, sleep and come back stronger.</p>
       <div style="display:flex;gap:8px;justify-content:center;flex-wrap:wrap;margin-bottom:20px;">
         <span class="pill pill-dim">Recovery</span><span class="pill pill-dim">Muscle growth</span><span class="pill pill-dim">No training</span>
@@ -26,7 +27,7 @@ function renderRestDayScreen(){
 }
 
 function logRestDay(){
-  const restDay = DATA.program.find(d=>d.type==='rest');
+  const restDay = DATA.program.find(d=>d.id===DATA.restDayId && d.type==='rest') || DATA.program.find(d=>d.type==='rest');
   if(!restDay) return;
   const session={
     id:newSessionId(),
@@ -49,7 +50,8 @@ function startSession(dayIdx){
   if(DATA.activeSession){ setTab('train'); return; }
   const day = DATA.program[dayIdx];
   if(!day) return;
-  if(day.type==='rest'){ startRestDay(); return; }
+  if(day.type==='rest'){ startRestDay(dayIdx); return; }
+  if(!day.exercises.length){alert('Add exercises to this day in More → Programme Builder before starting.');return;}
   const sess = {
     id: newSessionId(),
     date: todayISO(),

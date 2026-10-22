@@ -8,7 +8,7 @@ The original ten-phase roadmap remains the organising plan. Work already shipped
 | 2. Workout logging | Fast entry, editable sets, rest timers, notes, finishing and recovery | Implemented with logging, recovery and edit-safety acceptance checks in this release |
 | 3. History & data | History/details, search, edit/delete/Undo and data integrity | Implemented with correction, search, deletion/Undo and data-integrity acceptance checks in this release |
 | 4. Progress & analytics | Weight/reps/volume/strength trends, PRs, bodyweight and charts | Implemented with workout-level comparisons, chart/range controls, weekly training and bodyweight acceptance checks in this release |
-| 5. Programme builder | Custom exercises/days, sets, rep ranges, increments, RIR/tempo and programme structure | Existing editor; final exercise programme still needs reconciliation |
+| 5. Programme builder | Custom exercises/days, sets, rep ranges, increments, RIR/tempo and programme structure | Builder implemented with day/exercise and effort/tempo acceptance checks; personal exercise-plan reconciliation remains |
 | 6. Advanced coaching | Adapt recommendations to logged performance and recovery | Not accepted yet |
 | 7. Dashboard & personalisation | Tailored overview and training priorities | Existing dashboard; full phase acceptance remains |
 | 8. PWA / iPhone experience | Installation, offline loading and phone experience | PWA baseline shipped; real iPhone Home Screen check remains |
@@ -19,7 +19,7 @@ The original ten-phase roadmap remains the organising plan. Work already shipped
 
 - Last-session weights and reps remain visible.
 - Each exercise has a concrete per-set prescription and explanation.
-- Calibration, overload, deload, intensification and peak use the existing programme's effort guidance, expressed as RIR and approximate RPE. Only the final Peak isolation set can have a 0 RIR target; failure-based partial cues are suppressed in other phases.
+- Calibration, overload, deload, intensification and peak use the existing programme's effort guidance, expressed as RIR and approximate RPE. With default phase guidance, only the final Peak isolation set can have a 0 RIR target; Phase 5 adds explicit user-set RIR overrides outside deload; failure-based partial cues are suppressed in other phases.
 - 40 kg × 8/8/7 holds 40 kg and targets 9/8/7; 40 kg × 9/9/8 still holds 40 kg; 40 kg × 10/10/10 increases by the exercise's increment and returns to the lower rep target.
 - Incomplete or mixed-load histories never trigger an invented median-load increase. Additional optional sets do not alter the planned-set progression test.
 - A single poor workout does not trigger an automatic reduction; a repeated comparable shortfall can use the exercise's increment to reduce load.
@@ -63,3 +63,15 @@ The engine implements transparent programme rules. It does not claim to measure 
 - History corrections, deletion and Undo immediately update charts and records. Viewing/filtering analytics does not write saved state.
 - `tests/progress.cjs` adds twelve logic checks. `tests/progress-browser.mjs` checks comparisons, four metrics, ranges, variations, archived/bodyweight history, search, mobile overflow, read-only state and the correction/delete/Undo loop in Chromium and WebKit. Earlier phase and PWA checks remain required.
 - Deployment verification now uses a fresh query on each request and allows a longer propagation window after a transient CDN 404 observed in Phase 3. The deploy job reuses the successful check job's artifact name when only deployment is retried.
+
+## Phase 5 builder acceptance evidence
+
+- More → Programme Builder creates, renames, copies, reorders and removes training/rest days. Day selection follows the selected ID across reordering. At least one day is retained, and an active workout's day cannot be removed.
+- Exercise controls add, edit, copy, reorder and remove definitions. Copies receive new IDs; they do not inherit historical performance. Removing a definition preserves active snapshots, History and archived Progress records.
+- Strict numeric entry rejects empty/fractional set or rep counts, invalid ranges and invalid rest/increment values. Zero rest/increments and fractional weight increments are preserved.
+- Category, optional 0–5 RIR, tempo, per-leg reps, alternatives and notes are editable. Blank RIR retains phase defaults; explicit RIR reaches new-session coaching, including approximate RPE. Deload retains 3–4 RIR and disables failure-based partial cues. Existing optional partial cues remain subject to Peak/isolation/effort conditions.
+- New workouts snapshot these settings; edits do not rename or truncate active or historical sets. Tempo is shown in Train, and imported backups validate optional RIR/tempo fields.
+- Rest days cannot silently erase exercises during conversion; empty training days cannot start an unusable workout. With multiple rest days, logging uses the chosen day rather than the first rest day. Removing an open rest day clears its screen.
+- Storage errors, stale tabs and outdated editor drafts do not commit programme changes. Programme export/import retains builder settings and original historical logs.
+- `tests/programme.cjs` adds thirteen checks. `tests/programme-browser.mjs` tests actual day/exercise creation, copying/reordering/removal, strict input, effort/tempo display, active recovery, archived analytics, selected rest-day logging and mobile overflow in Chromium/WebKit. Earlier phase and PWA suites remain required.
+- Personal programme review remains separate: the default template has not been replaced, and the user's device-local exercise edits are not accessible here. The exact lower-day exercise list and current physio instructions are still needed before reconciling pin squats and ham/glute versus quad emphasis.

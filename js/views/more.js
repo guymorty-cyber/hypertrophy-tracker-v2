@@ -31,14 +31,15 @@ function renderMore(){
       ${nutritionAdvice ? `<div class="reco reco-reps" style="margin:12px 0 0;">${nutritionAdvice}</div>` : ''}
     </div>
 
-    <h2 class="section">Programme Editor</h2>
+    <h2 class="section">Programme Builder</h2>
     <div class="card">
       <div class="field" style="margin-bottom:10px;">
         <label>Edit day</label>
         <select id="editDaySelect" class="searchbox">
-          ${DATA.program.map((d,i)=>`<option value="${i}">${i+1}. ${escapeHtml(d.name)}</option>`).join('')}
+          ${DATA.program.map((d,i)=>`<option value="${i}" ${d.id===selectedEditorDayId?'selected':''}>${i+1}. ${escapeHtml(d.name)}</option>`).join('')}
         </select>
       </div>
+      <button class="btn btn-outline" data-action="addProgrammeDay" style="margin-bottom:12px;">+ Add day</button>
       <div id="dayEditorList"></div>
     </div>
 
