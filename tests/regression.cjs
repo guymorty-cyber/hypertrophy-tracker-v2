@@ -22,7 +22,7 @@ function boot(script, initial={}){
   class Clock extends Date{constructor(...args){super(...(args.length?args:[state.clock]));} static now(){return state.clock;}}
   class Reader{readAsText(file){this.onload({target:{result:file.content}});}}
   const prefix="Object.defineProperty(window,'computeRecommendation',{get:()=>computeRecommendation,set:v=>computeRecommendation=v});\n";
-  const suffix="\nreturn {get data(){return DATA;},set data(v){DATA=v;},get blocked(){return storageBlocked;},get unsaved(){return unsavedChanges;},get timer(){return restTimerState;},get tab(){return currentTab;},defaultData,validateData,save,commitData,load,restoreBackup,deleteWorkout,undoDeleteWorkout,startSession,startRestDay,logRestDay,updateSetField,toggleSetComplete,finishWorkoutFlow,startRestTimer,updateRestTimerFromClock,stopRestTimer,attachTabEvents,importData,renderHistory,renderActiveSession,computeRecommendation};";
+  const suffix="\nreturn {get data(){return DATA;},set data(v){DATA=v;},get blocked(){return storageBlocked;},get unsaved(){return unsavedChanges;},get timer(){return restTimerState;},get tab(){return currentTab;},defaultData,validateData,save,commitData,load,restoreBackup,deleteWorkout,undoDeleteWorkout,startSession,startRestDay,logRestDay,updateSetField,toggleSetComplete,finishWorkoutFlow,startRestTimer,updateRestTimerFromClock,stopRestTimer,attachTabEvents,importData,renderHistory,renderActiveSession,computeRecommendation,lastSessionFor,addWorkoutSet,removeWorkoutSet,useLastSession};";
   const app=new Function('document','window','localStorage','alert','confirm','navigator','setInterval','clearInterval',
     'setTimeout','Date','crypto','FileReader','Blob','URL',prefix+script+suffix)(
     document,window,localStorage,m=>state.alerts.push(m),()=>state.confirm,{vibrate(){}},()=>1,()=>{},()=>1,Clock,
@@ -147,6 +147,80 @@ function regressionTests(script){
     const rec=h.app.computeRecommendation(ex,{sets:[{weight:30,reps:8,completed:true}]});
     assert(rec.detail.includes('30kg × 8'),'last performance missing');
   });
+  test('Adding sets changes this workout only and survives reopening',()=>{
+    const h=boot(script);h.app.startSession(0);
+    const id=h.app.data.activeSession.exercises[0].exerciseId;
+    const planned=h.app.data.program[0].exercises[0].sets;
+    assert(h.app.addWorkoutSet(id),'add failed');
+    assert(h.app.data.activeSession.exercises[0].sets.length===planned+1,'set not added');
+    assert(h.app.data.program[0].exercises[0].sets===planned,'programme changed');
+    const r=boot(script,{[key]:h.records.get(key)});
+    assert(r.app.data.activeSession.exercises[0].sets.length===planned+1,'added set not recovered');
+  });
+  test('Removal preserves completed sets, requires confirmation for entered values and keeps one set',()=>{
+    const h=boot(script);h.app.startSession(0);
+    const log=h.app.data.activeSession.exercises[0],id=log.exerciseId;
+    log.sets[log.sets.length-1]={weight:30,reps:8,completed:true};h.app.save();
+    assert(!h.app.removeWorkoutSet(id),'completed set removed');
+    h.app.data.activeSession.exercises[0].sets.at(-1).completed=false;h.app.save();h.state.confirm=false;
+    assert(!h.app.removeWorkoutSet(id),'entered values removed without confirmation');
+    h.state.confirm=true;assert(h.app.removeWorkoutSet(id),'confirmed removal failed');
+    while(h.app.data.activeSession.exercises[0].sets.length>1) h.app.removeWorkoutSet(id);
+    assert(!h.app.removeWorkoutSet(id),'last set removed');
+  });
+  test('Set changes roll back when storage is full',()=>{
+    const h=boot(script);h.app.startSession(0);
+    const log=h.app.data.activeSession.exercises[0],id=log.exerciseId,count=log.sets.length;
+    h.state.writeFailure=true;
+    assert(!h.app.addWorkoutSet(id),'failed add succeeded');
+    assert(!h.app.removeWorkoutSet(id),'failed remove succeeded');
+    assert(h.app.data.activeSession.exercises[0].sets.length===count,'failed edit changed sets');
+  });
+  test('Use last session fills only empty fields and never marks sets complete',()=>{
+    const h=boot(script);h.app.startSession(0);
+    const log=h.app.data.activeSession.exercises[0],id=log.exerciseId;
+    const previous=completed(h.app);previous.exercises[0].sets=[
+      {weight:0,reps:12,completed:true}, {weight:32.5,reps:9,completed:true}, {weight:50,reps:5,completed:false}];
+    h.app.data.sessions=[previous];log.sets[1].weight=35;log.sets[2]={weight:25,reps:10,completed:true};h.app.save();
+    assert(h.app.useLastSession(id),'copy failed');
+    const sets=h.app.data.activeSession.exercises[0].sets;
+    assert(sets[0].weight===0 && sets[0].reps===12 && !sets[0].completed,'zero weight lost or set completed');
+    assert(sets[1].weight===35 && sets[1].reps===9,'entered weight overwritten');
+    assert(sets[2].weight===25 && sets[2].reps===10 && sets[2].completed,'completed set changed');
+    assert(!h.app.useLastSession(id),'copy repeated filled fields');
+  });
+  test('Copying previous performance skips incomplete historical sets and rolls back failed saves',()=>{
+    const h=boot(script);h.app.startSession(0);
+    const id=h.app.data.activeSession.exercises[0].exerciseId;
+    const previous=completed(h.app);previous.exercises[0].sets.push({weight:50,reps:3,completed:false});
+    h.app.data.sessions=[previous];h.app.save();h.state.writeFailure=true;
+    assert(!h.app.useLastSession(id),'copy succeeded without saving');
+    assert(h.app.data.activeSession.exercises[0].sets[0].weight===null,'failed copy changed data');
+    h.state.writeFailure=false;assert(h.app.useLastSession(id),'retry failed');
+    assert(h.app.data.activeSession.exercises[0].sets[1].weight===null,'unfinished historical set copied');
+  });
+  test('Previous workout lookup orders same-day sessions by start time and respects exercise variants',()=>{
+    const h=boot(script),older=completed(h.app,'old'),newer=completed(h.app,'new');
+    older.startedAt=100;newer.startedAt=200;newer.exercises[0].sets[0].weight=35;
+    h.app.data.sessions=[newer,older];const id=older.exercises[0].exerciseId;
+    assert(h.app.lastSessionFor(id).session.id==='new','same-day ordering incorrect');
+    newer.exercises[0].name='Different exercise';
+    assert(h.app.lastSessionFor(id,older.exercises[0].name).session.id==='old','different variation selected');
+    assert(h.app.lastSessionFor(id,'Never logged')===null,'missing variation matched');
+  });
+  test('Coaching compares the preceding workout without treating an exercise log as a session wrapper',()=>{
+    const h=boot(script),before=completed(h.app,'before'),latest=completed(h.app,'latest');
+    before.startedAt=100;latest.startedAt=200;
+    before.exercises[0].sets=Array.from({length:3},()=>({weight:30,reps:10,completed:true}));
+    latest.exercises[0].sets=Array.from({length:3},()=>({weight:30,reps:7,completed:true}));
+    h.app.data.sessions=[latest,before];
+    const ex=h.app.data.program[0].exercises[0];
+    const rec=h.app.computeRecommendation(ex,latest.exercises[0]);
+    assert(rec.type==='maintain','preceding performance ignored');
+    assert(rec.detail.includes('30 → 21'),'comparison used wrong workout');
+    h.app.startSession(0);
+    assert(h.app.renderActiveSession().includes('Use last session'),'repeat-session renderer failed');
+  });
   return results;
 }
 
@@ -155,3 +229,4 @@ const script=html.match(/<script>([\s\S]*?)<\/script>/)[1];
 const results=regressionTests(script);
 for(const r of results) console.log((r.pass?'PASS ':'FAIL ')+r.name+(r.error?': '+r.error:''));
 if(results.some(r=>!r.pass)) process.exitCode=1;
+
