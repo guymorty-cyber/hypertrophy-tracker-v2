@@ -3,10 +3,9 @@ function renderHome(wk,phase){
   const prefs=dashboardPreferences(),summary=dashboardSummary();
   const todayIdx = getNextProgramIndex();
   const day = DATA.program[todayIdx];
-  const bw = DATA.bodyweight.slice().sort((a,b)=>a.date<b.date?-1:1);
+  const bw = DATA.bodyweight.filter(b=>b.date<=todayISO()).sort((a,b)=>a.date<b.date?-1:1);
   const lastBW = bw[bw.length-1];
-  const weekAvg = computeWeeklyAvg();
-  const trend = bodyweightWeeklyRate(weekAvg);
+  const trend = bodyWeightWindows().weeklyChange;
   const lastSession = DATA.sessions.filter(s=>s.exercises.some(e=>e.sets.some(usablePreviousSet))).sort((a,b)=>b.date.localeCompare(a.date) || b.startedAt-a.startedAt)[0];
   const prList = allExercisePRs().sort((a,b)=>b.pr.bestE1RM.date.localeCompare(a.pr.bestE1RM.date) || b.pr.bestE1RM.startedAt-a.pr.bestE1RM.startedAt);
   const recentPR = prList.length ? prList[0] : null;
@@ -55,8 +54,8 @@ function renderHome(wk,phase){
         <div class="label">Bodyweight</div>
         <div class="value">${lastBW ? lastBW.weight+' kg' : '—'}</div>
         <div class="sub ${trend===null?'trend-flat':(trend>0?'trend-up':(trend<0?'trend-down':'trend-flat'))}">
-          ${trend===null?'Log more to see trend':(trend>0?'↑ +'+trend.toFixed(2)+'kg/wk':(trend<0?'↓ '+trend.toFixed(2)+'kg/wk':'Flat'))}
-        </div>
+          ${trend===null?'Need 3+ weigh-in days in each of two weeks':(trend>0?'↑ +'+trend.toFixed(2)+' kg':(trend<0?'↓ '+trend.toFixed(2)+' kg':'Flat'))}${trend===null?'':' · 7-day averages'}
+        </div><button class="btn btn-sm btn-outline" data-action="bodyProgress">Body progress</button>
       </div>`:''}
       <div class="stat-box">
         <div class="label">Recent PR</div>
@@ -94,7 +93,7 @@ function renderNutritionMini(){
   </div>`;
 }
 function computeWeeklyAvg(){
-  return weeklyBodyweight(DATA.bodyweight).map((row,i)=>({week:i,date:row.date,avg:row.avg,count:row.count}));
+  return weeklyBodyweight(DATA.bodyweight.filter(b=>b.date<=todayISO())).map((row,i)=>({week:i,date:row.date,avg:row.avg,count:row.count}));
 }
 function allExercisePRs(){
   return progressExercises().map(ex=>({...ex,exId:ex.id,pr:getPRFor(ex.id,ex.name)})).filter(ex=>ex.pr);

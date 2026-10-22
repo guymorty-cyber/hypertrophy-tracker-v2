@@ -124,10 +124,10 @@ function renderTrainingProgress(){
 }
 function renderBodyweightProgress(){
   const days=dailyBodyweight().filter(row=>inProgressRange(row.date)),weeks=weeklyBodyweight(days),rate=bodyweightWeeklyRate(weeks),latest=days.at(-1);
-  return `<h2 class="section">Bodyweight · selected range</h2><div class="card" id="bodyweightProgress">${renderSparkline(days.map(row=>({date:row.date,value:row.weight})),{label:'Bodyweight',unit:'kg'})}
+  return `<h2 class="section">Body progress · selected range</h2><div class="card" id="bodyweightProgress">${renderSparkline(days.map(row=>({date:row.date,value:row.weight})),{label:'Bodyweight',unit:'kg'})}
     <div class="metric-grid"><div class="metric"><div class="label">Latest weigh-in</div><div class="value">${latest?progressNumber(latest.weight,2)+' kg':'—'}</div><div class="progress-caption">${latest?fmtDateFull(latest.date):'Log bodyweight in More'}</div></div>
     <div class="metric"><div class="label">Latest week average</div><div class="value">${weeks.length?progressNumber(weeks.at(-1).avg,2)+' kg':'—'}</div><div class="progress-caption">${weeks.length?weeks.at(-1).count+' weigh-ins':'No weigh-ins in range'}</div></div></div>
-    <div class="progress-caption">${rate===null?'Need weigh-ins in two calendar weeks to show a weekly rate.':`Change between the latest two measured week averages: ${rate>0?'+':''}${progressNumber(rate,2)} kg/week.`} Monday–Sunday averages use recorded days only; missing weigh-ins are not invented. Current weeks may be partial.</div></div>`;
+    <div class="progress-caption">${rate===null?'Need weigh-ins in two calendar weeks to show a weekly rate.':`Change between the latest two measured week averages: ${rate>0?'+':''}${progressNumber(rate,2)} kg/week.`} Monday–Sunday averages use recorded days only; missing weigh-ins are not invented. Current weeks may be partial.</div></div>${renderBodyInsights()}`;
 }
 function renderSparkline(series,options={}){
   const rows=series.filter(row=>Number.isFinite(row.value) && Number.isFinite(utcDay(row.date)));

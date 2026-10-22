@@ -74,6 +74,30 @@ function validateData(value){
   }
   if(value.bodyweight.some(b=>!object(b)||!date(b.date)||!number(b.weight)||b.weight<=0) ||
      value.nutrition.some(n=>!object(n)||!date(n.date)||!number(n.calories)||!number(n.protein))) fail();
+  // Optional body tracking collections: legacy backups need no migration/write.
+  if(value.scaleReadings!==undefined){
+    if(!Array.isArray(value.scaleReadings))fail();
+    const keys=new Set();
+    for(const b of value.scaleReadings){
+      if(!object(b) || b.source!=='renpho-health' || !date(b.date) || !/^([01]\d|2[0-3]):[0-5]\d:[0-5]\d$/.test(b.time) ||
+        !number(b.weight) || b.weight<=0 || b.weight>600)fail();
+      const key=b.date+'T'+b.time;if(keys.has(key))fail();keys.add(key);
+      for(const field of ['bodyFatPct','muscleMassKg','skeletalMuscleKg','fatFreeMassKg']){
+        const n=b[field];if(n!==undefined && n!==null && (!number(n) || n>(field==='bodyFatPct'?100:b.weight)))fail();
+      }
+    }
+  }
+  if(value.bodyMeasurements!==undefined){
+    if(!Array.isArray(value.bodyMeasurements))fail();
+    const dates=new Set();
+    for(const b of value.bodyMeasurements){
+      if(!object(b) || !date(b.date) || dates.has(b.date))fail();dates.add(b.date);
+      for(const field of ['waistCm','armCm','chestCm','thighCm']){
+        const n=b[field];if(n!==undefined && n!==null && (!number(n) || n<=0 || n>400))fail();
+      }
+      if(!['waistCm','armCm','chestCm','thighCm'].some(field=>Number.isFinite(b[field])))fail();
+    }
+  }
   if(value.dashboard!==undefined){
     const p=value.dashboard;
     if(!object(p) || !text(p.name) || p.name.length>60 ||
