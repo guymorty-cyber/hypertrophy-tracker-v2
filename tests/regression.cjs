@@ -225,8 +225,11 @@ function regressionTests(script){
 }
 
 const html=fs.readFileSync(path.join(__dirname,'../index.html'),'utf8');
-const script=html.match(/<script>([\s\S]*?)<\/script>/)[1];
+const scripts=[...html.matchAll(/<script defer src="\.\/([^"]+)"/g)].map(match=>match[1]);
+if(!scripts.length) throw new Error('No app scripts found');
+const script=scripts.map(file=>fs.readFileSync(path.join(__dirname,'..',file),'utf8')).join('\n');
 const results=regressionTests(script);
 for(const r of results) console.log((r.pass?'PASS ':'FAIL ')+r.name+(r.error?': '+r.error:''));
 if(results.some(r=>!r.pass)) process.exitCode=1;
+
 

@@ -1,15 +1,27 @@
 import {readFileSync} from 'node:fs';
+import {fileURLToPath} from 'node:url';
+import {resolve,extname,sep} from 'node:path';
 import {createServer} from 'node:http';
 import assert from 'node:assert/strict';
 import {chromium,webkit} from 'playwright';
 
-const html=readFileSync(new URL('../index.html',import.meta.url),'utf8');
+const root=fileURLToPath(new URL('../dist/',import.meta.url));
+const prefix='/hypertrophy-tracker-v2/';
+const types={'.html':'text/html','.js':'application/javascript','.css':'text/css','.json':'application/json','.webmanifest':'application/manifest+json','.png':'image/png'};
 const server=createServer((req,res)=>{
-  res.writeHead(200,{'Content-Type':'text/html','Cache-Control':'no-store'});
-  res.end(html);
+  const url=new URL(req.url,'http://localhost');
+  if(!url.pathname.startsWith(prefix)){res.writeHead(404);return res.end();}
+  const relative=decodeURIComponent(url.pathname.slice(prefix.length))||'index.html';
+  const path=resolve(root,relative);
+  if(!path.startsWith(resolve(root)+sep)){res.writeHead(403);return res.end();}
+  try{
+    const body=readFileSync(path);
+    res.writeHead(200,{'Content-Type':types[extname(path)]||'application/octet-stream','Cache-Control':'no-store'});
+    res.end(body);
+  }catch(e){res.writeHead(404);res.end();}
 });
 await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));
-const base='http://127.0.0.1:'+server.address().port;
+const base='http://127.0.0.1:'+server.address().port+prefix;
 try{
   for(const [name,engine] of [['Chromium',chromium],['WebKit',webkit]]){
     const browser=await engine.launch();
@@ -87,4 +99,5 @@ try{
     }finally{await browser.close();}
   }
 }finally{await new Promise(resolve=>server.close(resolve));}
+
 

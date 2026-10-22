@@ -24,10 +24,12 @@ jobs:
         run: |
           npm install --no-save --package-lock=false playwright@1.56.1
           npx playwright install --with-deps chromium webkit
-      - name: Test mobile workout flow in Chromium and WebKit
-        run: node tests/browser-smoke.mjs
       - name: Package Pages
         run: python scripts/build_pages.py
+      - name: Test mobile workouts, offline loading and updates
+        run: |
+          node tests/browser-smoke.mjs
+          node tests/pwa.mjs
       - name: Upload Pages artifact
         if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
         uses: actions/upload-pages-artifact@v4
@@ -56,3 +58,28 @@ jobs:
         uses: actions/deploy-pages@v4
         with:
           artifact_name: hypertrophy-pages-${{ github.run_id }}-${{ github.run_attempt }}
+
+      - name: Verify published PWA
+        env:
+          PAGE_URL: ${{ steps.deployment.outputs.page_url }}
+          EXPECTED_BUILD: ${{ github.sha }}
+        run: |
+          python - <<'PYVERIFY'
+          import json, os, time, urllib.request
+          base=os.environ['PAGE_URL'].rstrip('/')+'/'
+          build=os.environ['EXPECTED_BUILD']
+          def get(path):
+              with urllib.request.urlopen(base+path+'?verify='+build, timeout=15) as response:
+                  return response.read().decode('utf-8')
+          for attempt in range(6):
+              try:
+                  assert json.loads(get('version.json'))['build']==build
+                  assert './assets/'+build+'/' in get('index.html')
+                  assert "const BUILD='"+build+"'" in get('sw.js')
+                  assert json.loads(get('manifest.webmanifest'))['start_url']=='./'
+                  print('Published PWA verified:',base,build)
+                  break
+              except Exception:
+                  if attempt==5: raise
+                  time.sleep(5)
+          PYVERIFY
