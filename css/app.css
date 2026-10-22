@@ -280,10 +280,11 @@ a.linklike{color:var(--accent);text-decoration:none;font-weight:700;font-size:13
 /* Phase 8: phone controls, safe areas and keyboard-aware entry. */
 :root{--nav-height:64px;--keyboard-inset:0px;}
 html{scroll-padding-top:100px;scroll-padding-bottom:160px;}
-body{padding-bottom:calc(var(--nav-height) + 24px + env(safe-area-inset-bottom));}
+/* Reserve both bars so focus changes cannot move a tapped button. */
+body{padding-bottom:calc(var(--nav-height) + 144px + var(--keyboard-inset));}
 #app{min-height:100svh;}
 #content{padding-left:max(16px,env(safe-area-inset-left));padding-right:max(16px,env(safe-area-inset-right));}
-input:not([type=checkbox]):not([type=radio]),select,textarea,.setrow input,.notesbox textarea,.field input,.field select,.field textarea{font-size:16px;}
+input:not([type=checkbox]):not([type=radio]),select,textarea,.searchbox,.setrow input,.notesbox textarea,.field input,.field select,.field textarea{font-size:16px;}
 button,.btn{touch-action:manipulation;}
 button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible,a:focus-visible{outline:2px solid var(--teal);outline-offset:3px;}
 .iconbtn,.ex-actions button,.btn-sm,.btn-ghost,.painscale button,.programme-actions button,#resttimer button,#savePanel button,#undoPanel button{min-height:44px;}
@@ -294,30 +295,23 @@ button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-vis
 .checkwrap{min-width:44px;min-height:44px;}
 .checkwrap input[type=checkbox]{width:32px;height:32px;}
 .setrow{scroll-margin-top:110px;scroll-margin-bottom:150px;}
-body:has(#resttimer.show){padding-bottom:calc(var(--nav-height) + 92px + env(safe-area-inset-bottom));}
 #resttimer{bottom:var(--nav-height);padding-left:max(16px,env(safe-area-inset-left));padding-right:max(16px,env(safe-area-inset-right));}
 #entryToolbar{position:fixed;z-index:70;left:0;right:0;bottom:calc(var(--nav-height) + var(--keyboard-inset));max-width:480px;margin:auto;display:flex;gap:6px;align-items:center;background:var(--surface-3);border-top:1px solid var(--line);padding:8px max(10px,env(safe-area-inset-right)) 8px max(10px,env(safe-area-inset-left));}
 #entryToolbar button{min-height:44px;padding:0 10px;border:1px solid var(--line);border-radius:8px;background:var(--surface);color:var(--text);font-weight:700;}
 #entryToolbar button:disabled{opacity:.35;}
 #entryToolbar #entryDone{color:var(--teal);}
 #entryLabel{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px;color:var(--text-dim);}
-body.entry-editing{padding-bottom:calc(var(--nav-height) + 168px + var(--keyboard-inset));}
 body.entry-editing #resttimer{bottom:calc(var(--nav-height) + 64px);}
 body.keyboard-open #navbar,body.keyboard-open #resttimer{visibility:hidden;}
 body.keyboard-open #entryToolbar{bottom:var(--keyboard-inset);}
 .overlay{top:var(--viewport-top,0px);bottom:auto;height:var(--viewport-height,100dvh);padding-left:env(safe-area-inset-left);padding-right:env(safe-area-inset-right);}
-.modal{max-height:calc(var(--viewport-height,100dvh) - 16px);overscroll-behavior:contain;-webkit-overflow-scrolling:touch;}
+.modal{padding-bottom:calc(90px + env(safe-area-inset-bottom));max-height:calc(var(--viewport-height,100dvh) - 16px);overscroll-behavior:contain;-webkit-overflow-scrolling:touch;}
 body.modal-open{overflow:hidden;}
-body.entry-editing .modal{padding-bottom:calc(90px + env(safe-area-inset-bottom));}
 .app-status-row{font-size:13px;line-height:1.5;margin:8px 0;color:var(--text-dim);}
 @media (prefers-reduced-motion:reduce){*{scroll-behavior:auto!important;}}
 
-body.entry-editing:has(#resttimer.show){padding-bottom:calc(var(--nav-height) + 168px + var(--keyboard-inset));}
 .home-setting,.programme-check{min-height:44px;}
 
 body.modal-open #entryToolbar{bottom:var(--keyboard-inset);}
 
-/* Reserve control space consistently so focus changes cannot move a tapped button. */
-.searchbox{font-size:16px;}
-body,body:has(#resttimer.show),body.entry-editing,body.entry-editing:has(#resttimer.show){padding-bottom:calc(var(--nav-height) + 144px + var(--keyboard-inset));}
-.modal,body.entry-editing .modal{padding-bottom:calc(90px + env(safe-area-inset-bottom));}
+body.modal-open:not(.keyboard-open) #entryToolbar{padding-bottom:max(8px,env(safe-area-inset-bottom));}
