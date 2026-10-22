@@ -5,7 +5,7 @@ The original ten-phase roadmap remains the organising plan. Work already shipped
 | Phase | Scope | Current position |
 |---|---|---|
 | 1. Coaching foundation | Last performance, specific weight/rep targets, double progression, effort guidance, exercise increments, explanations and missing-data handling | Implemented with unit and browser acceptance checks in this release |
-| 2. Workout logging | Fast entry, editable sets, rest timers, notes, finishing and recovery | Next acceptance audit; substantial existing functionality is already shipped |
+| 2. Workout logging | Fast entry, editable sets, rest timers, notes, finishing and recovery | Implemented with logging, recovery and edit-safety acceptance checks in this release |
 | 3. History & data | History/details, search, edit/delete/Undo and data integrity | Existing foundation; full phase acceptance remains |
 | 4. Progress & analytics | Weight/reps/volume/strength trends, PRs, bodyweight and charts | Existing basic views; full phase acceptance remains |
 | 5. Programme builder | Custom exercises/days, sets, rep ranges, increments, RIR/tempo and programme structure | Existing editor; final exercise programme still needs reconciliation |
@@ -29,3 +29,14 @@ The original ten-phase roadmap remains the organising plan. Work already shipped
 - `tests/coaching.cjs` checks the decision paths. `tests/coaching-browser.mjs` proves the complete previous performance → recommendation → workout → logged sets → next recommendation loop in Chromium and WebKit.
 
 The engine implements transparent programme rules. It does not claim to measure effort, know equipment availability or replace the user's exercise technique and recovery judgement.
+
+## Phase 2 acceptance evidence
+
+- Weight/reps and both note fields save during entry. Existing add/remove-set and copy-last controls remain available, without changing programme set counts.
+- New workouts snapshot their exercise definitions. Programme edits, reordering, additions and deletions apply to future workouts without shortening, renaming or hiding active logged sets. Legacy unfinished workouts acquire definitions in memory when loaded, with no immediate storage rewrite.
+- Exercise swaps require empty, unchecked sets so existing performance cannot be relabelled as another movement. Swaps and programme edits report success only after persistence.
+- Invalid weight/rep edits clear the affected saved field and uncheck completion, preventing an older valid value from being silently logged.
+- Finishing with unfinished sets requires confirmation; only completed sets enter totals. Cancelling that prompt retains the workout. Failed finish retains the active session and retry creates one historical record.
+- Rest timers use wall-clock deadlines; extension, skip and recovery are checked alongside notes and completed-set recovery.
+- `tests/logging.cjs` adds ten logic checks; `tests/logging-browser.mjs` exercises real entry, editing, swaps, notes, reopening, timers, cancellation, finishing and the next workout in Chromium and WebKit. Existing workout, coaching and offline/update suites remain required.
+- Actual iPhone Home Screen testing remains part of Phase 8; automated WebKit checks do not replace an on-device check.

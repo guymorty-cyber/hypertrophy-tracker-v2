@@ -31,9 +31,10 @@ function renderTrain(){
 function renderActiveSession(){
   const sess = DATA.activeSession;
   const day = DATA.program.find(d=>d.id===sess.dayId);
+  const isLower=sess.isLower ?? !!(day && day.isLower);
   const wk = sess.weekNumber || getWeekNumber(); const phase = getPhase(wk);
   let kneeBefore = '';
-  if(day.isLower){
+  if(isLower){
     kneeBefore = `<div class="card card-tight" style="border-color:var(--teal);">
       <div class="row">
         <div style="font-size:13px;font-weight:700;">Knee pain — before workout</div>
@@ -45,19 +46,15 @@ function renderActiveSession(){
     </div>`;
   }
 
-  const exercisesHtml = day.exercises.map((ex,idx)=>{
-    let log = sess.exercises.find(e=>e.exerciseId===ex.id);
-    if(!log){
-      log = {exerciseId:ex.id, name:ex.currentDisplay || ex.name, notes:'', sets:Array.from({length:getCoachingPrescription(ex,wk).sets}, ()=>({weight:null,reps:null,completed:false}))};
-      sess.exercises.push(log);
-    }
+  const exercisesHtml = sess.exercises.map((log,idx)=>{
+    const ex=workoutExercise(log);
     const lastLog = lastSessionFor(ex.id,log.name);
     const rec = computeRecommendation(ex, lastLog && lastLog.log,{weekNumber:wk});
-    return renderExerciseBlock(ex, log, lastLog, rec);
+    return renderExerciseBlock(ex, log, lastLog, rec,idx+1);
   }).join('');
 
   let kneeAfter = '';
-  if(day.isLower){
+  if(isLower){
     kneeAfter = `<div class="card card-tight" style="border-color:var(--teal);">
       <div class="row">
         <div style="font-size:13px;font-weight:700;">Knee pain — immediately after</div>
@@ -70,12 +67,12 @@ function renderActiveSession(){
     </div>`;
   }
 
-  const activeDayIdx = DATA.program.findIndex(d=>d.id===day.id);
+  const activeDayIdx = DATA.program.findIndex(d=>d.id===sess.dayId);
   return `
     <div class="card card-tight" style="display:flex;justify-content:space-between;align-items:center;">
       <div>
         <div style="font-size:11px;color:var(--text-dim);">Week ${wk} · ${phase.name}</div>
-        <div style="font-size:16px;font-weight:800;">${activeDayIdx+1}. ${escapeHtml(day.name)}</div>
+        <div style="font-size:16px;font-weight:800;">${activeDayIdx>=0?(activeDayIdx+1)+'. ':''}${escapeHtml(sess.dayName)}</div>
       </div>
       <button class="btn-ghost" data-action="cancelSession">Cancel</button>
     </div>
@@ -100,7 +97,7 @@ function kneeFlagHtml(score){
   return `<div class="knee-flag ${cls}">${ev.label}</div>`;
 }
 
-function renderExerciseBlock(ex, log, lastLog, rec){
+function renderExerciseBlock(ex, log, lastLog, rec,number=exNumber(ex.id)){
   let prevLine = '';
   if(lastLog && lastLog.log){
     const setsStr = lastLog.log.sets.filter(s=>s.completed).map(s=>`${s.weight}kg×${s.reps}`).join(', ');
@@ -134,7 +131,7 @@ function renderExerciseBlock(ex, log, lastLog, rec){
 
   return `<div class="ex-card">
     <div class="ex-head">
-      <h3 class="ex-title">${exNumber(ex.id)}. ${escapeHtml(log.name)}</h3>
+      <h3 class="ex-title">${number}. ${escapeHtml(log.name)}</h3>
       <div class="ex-target">${log.sets.length} sets today${log.sets.length!==ex.sets?' ('+ex.sets+' planned)':''} · ${ex.repMin}–${ex.repMax} reps${ex.perLeg?' each leg':''} · Rest ${Math.round(ex.restSec/60*10)/10>=1?Math.round(ex.restSec/60)+' min':ex.restSec+'s'}</div>
       ${ex.note?`<div class="ex-note">${escapeHtml(ex.note)}</div>`:''}
       ${ex.finalPartials?`<div class="ex-note">${rec.context.partialsAllowed?'Optional final isolation set: follow the programmed controlled partials after technical failure.':'Follow the RIR target; no failure-based partials in this phase.'}</div>`:''}
@@ -142,7 +139,7 @@ function renderExerciseBlock(ex, log, lastLog, rec){
       <div class="ex-actions">
         <button data-action="startRest" data-sec="${ex.restSec}">Start rest timer</button>
         ${altBtn}
-        <button data-action="editExFromWorkout" data-exid="${ex.id}">Edit exercise</button>
+        ${findExercise(ex.id)?`<button data-action="editExFromWorkout" data-exid="${ex.id}">Edit future workouts</button>`:''}
         ${lastLog?`<button data-action="useLastSession" data-exid="${ex.id}" ${canCopy?'':'disabled'} title="Fill empty fields from completed sets. Review before marking complete.">Use last session</button>`:''}
         <button data-action="addSet" data-exid="${ex.id}" ${log.sets.length>=100?'disabled':''}>+ Add set</button>
         <button data-action="removeSet" data-exid="${ex.id}" ${log.sets.length<=1 || log.sets[log.sets.length-1].completed?'disabled':''}>Remove last set</button>
