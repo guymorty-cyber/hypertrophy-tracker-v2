@@ -40,6 +40,7 @@ node tests/history.cjs
 node tests/progress.cjs
 node tests/programme.cjs
 node tests/adaptive.cjs
+node tests/dashboard.cjs
 npm install --no-save --package-lock=false playwright@1.56.1
 npx playwright install --with-deps chromium webkit
 node tests/browser-smoke.mjs
@@ -49,6 +50,7 @@ node tests/history-browser.mjs
 node tests/progress-browser.mjs
 node tests/programme-browser.mjs
 node tests/adaptive-browser.mjs
+node tests/dashboard-browser.mjs
 node tests/pwa.mjs
 python -m http.server --directory dist 8080
 ```
