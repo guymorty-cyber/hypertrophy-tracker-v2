@@ -84,9 +84,8 @@ function openExerciseEditModal(dayIdx, exId){
     }else{
       const edited=program[dayIdx].exercises.find(e=>e.id===exId);
       Object.assign(edited,{name,sets,repMin,repMax,restSec,inc});
-      delete edited.currentDisplay;
+      if(name!==ex.name) delete edited.currentDisplay;
       if(note) edited.note=note; else delete edited.note;
-
     }
     if(!commitData({...DATA,program})) return;
     closeModal();
