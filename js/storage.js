@@ -18,8 +18,8 @@ function validateData(value){
      !Array.isArray(value.sessions) || !Array.isArray(value.bodyweight) ||
      !Array.isArray(value.nutrition) || !date(value.programStartDate)) fail();
   if(!unique(value.program) || !unique(value.sessions)) fail();
-  const validateExercise = ex=>{
-    if(!object(ex) || !id(ex.id) || !/^[\w-]+$/.test(String(ex.id)) || !text(ex.name) || !Number.isInteger(ex.sets) ||
+  const validateExercise = (ex,live=false)=>{
+    if(!object(ex) || !id(ex.id) || (live && !text(ex.id)) || !/^[\w-]+$/.test(String(ex.id)) || !text(ex.name) || !Number.isInteger(ex.sets) ||
          ex.sets<1 || ex.sets>100 || !Number.isInteger(ex.repMin) || ex.repMin<1 || !Number.isInteger(ex.repMax) ||
          ex.repMin>ex.repMax || !number(ex.restSec) || !number(ex.inc)) fail();
     if(ex.rirTarget!==undefined && ex.rirTarget!==null && (!Number.isInteger(ex.rirTarget) || ex.rirTarget<0 || ex.rirTarget>5)) fail();
@@ -27,11 +27,11 @@ function validateData(value){
     if(ex.alts!==undefined && (!Array.isArray(ex.alts) || ex.alts.some(v=>!text(v)))) fail();
   };
   for(const day of value.program){
-    if(!object(day) || !id(day.id) || !text(day.name) ||
+    if(!object(day) || !text(day.id) || !text(day.name) ||
        !['training','rest'].includes(day.type) || !Array.isArray(day.exercises)) fail();
     if(!unique(day.exercises) || !/^[\w-]+$/.test(String(day.id))) fail();
     for(const ex of day.exercises){
-      validateExercise(ex);
+      validateExercise(ex,true);
     }
   }
   const programmeIds=value.program.flatMap(day=>day.exercises.map(ex=>String(ex.id)));
@@ -63,7 +63,7 @@ function validateData(value){
       sessions.some(s=>String(s.id)===String(activeSession.id)))) fail();
   if(activeSession){
     const exerciseIds=activeSession.exercises.map(ex=>String(ex.exerciseId));
-    if(new Set(exerciseIds).size!==exerciseIds.length)fail();
+    if(new Set(exerciseIds).size!==exerciseIds.length || activeSession.exercises.some(ex=>!text(ex.exerciseId)))fail();
     const day=value.program.find(d=>d.id===activeSession.dayId);
     activeSession.isLower=activeSession.isLower ?? !!day.isLower;
     activeSession.exercises=activeSession.exercises.map(e=>{
