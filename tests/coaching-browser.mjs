@@ -51,6 +51,7 @@ try{
         await page.locator('[data-action="finishWorkout"]').click();
         await page.locator('[data-action="closeModalHome"]').click();
         await start();
+        await first.locator('.coach-explanation > summary').click();
         assert((await first.locator('.coach-main').innerText()).includes(expected));
         assert.equal(await first.locator('.coach-set-target').count(),3);
       }
@@ -63,6 +64,7 @@ try{
       await page.reload();await start();
       assert.equal(await first.locator('[data-action="toggleComplete"]').count(),2);
       assert((await first.locator('.coach-effort').innerText()).includes('3–4 RIR'));
+      await first.locator('.coach-explanation > summary').click();
       assert((await first.locator('.coach-detail').innerText()).includes('No partials'));
       assert.equal(await page.evaluate(()=>JSON.parse(localStorage.getItem('htData_v1')).program[0].exercises[0].sets),3);
       assert.deepEqual(errors,[]);

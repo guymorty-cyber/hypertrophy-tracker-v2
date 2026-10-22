@@ -32,6 +32,7 @@ jobs:
           node tests/dashboard.cjs
           node tests/mobile.cjs
           node tests/reliability.cjs
+          node tests/clarity.cjs
       - name: Install browser test tools
         timeout-minutes: 5
         run: |
@@ -54,6 +55,7 @@ jobs:
           node tests/dashboard-browser.mjs
           node tests/mobile-browser.mjs
           node tests/reliability-browser.mjs
+          node tests/clarity-browser.mjs
           node tests/pwa.mjs
       - name: Upload Pages artifact
         if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'

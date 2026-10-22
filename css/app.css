@@ -315,3 +315,22 @@ body.modal-open{overflow:hidden;}
 body.modal-open #entryToolbar{bottom:var(--keyboard-inset);}
 
 body.modal-open:not(.keyboard-open) #entryToolbar{padding-bottom:max(8px,env(safe-area-inset-bottom));}
+
+/* Coaching clarity: short action first, optional evidence one tap away. */
+.reco-coach:before{content:none}
+.coach-goal{font-size:17px;font-weight:800;line-height:1.45;overflow-wrap:anywhere}
+.coach-explanation{margin-top:10px;font-weight:400;line-height:1.5;min-width:0}
+.coach-explanation>summary{min-height:44px;display:list-item;align-content:center;cursor:pointer;font-size:13px;font-weight:700;color:var(--teal);padding:10px 4px;box-sizing:border-box}
+.coach-explanation>summary:focus-visible{outline:2px solid var(--teal);outline-offset:2px;border-radius:4px}
+.coach-explanation .coach-main{font-size:13px;margin-top:10px}
+.coach-verdict{display:inline-block;margin:8px 0 3px;padding:3px 8px;border-radius:8px;font-size:12px;font-weight:800;background:var(--surface-3);color:var(--text)}
+.verdict-improving{color:var(--teal)}
+.verdict-attention{color:var(--warn)}
+.coach-verdict-reason{font-weight:400;line-height:1.5}
+.progress-next-action{margin-top:8px;line-height:1.5}
+.weekly-review{border-top:1px solid var(--line);margin-top:12px;padding-top:12px;overflow-wrap:anywhere}
+.weekly-verdicts{font-size:13px;font-weight:800;line-height:1.5}
+.weekly-focus{font-size:13px;line-height:1.5;margin-top:8px}
+.weekly-movement{font-size:13px;border-top:1px solid var(--line);padding:10px 0}
+.weekly-slot{margin-top:6px}
+.weekly-slot>span:first-child{display:block;font-size:12px;color:var(--text-dim)}
