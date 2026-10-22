@@ -37,8 +37,10 @@ function validateData(value){
   const normalizeSession = s=>{
     if(!object(s) || !id(s.id) || !id(s.dayId) || !text(s.dayName) ||
        !date(s.date) || !number(s.startedAt) || !Array.isArray(s.exercises)) fail();
+    if(s.readiness!==undefined && ![null,'usual','low'].includes(s.readiness)) fail();
     for(const e of s.exercises){
       if(!object(e) || !id(e.exerciseId) || !text(e.name) || !Array.isArray(e.sets)) fail();
+      if(e.effortRir!==undefined && e.effortRir!==null && (!Number.isInteger(e.effortRir) || e.effortRir<0 || e.effortRir>5)) fail();
       if(e.definition!==undefined){
         validateExercise(e.definition);
         if(e.definition.id!==e.exerciseId) fail();

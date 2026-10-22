@@ -258,3 +258,6 @@ a.linklike{color:var(--accent);text-decoration:none;font-weight:700;font-size:13
 .day-editor-row .arrows{max-width:100%;}
 .day-editor-row .arrows button{width:auto;min-width:44px;height:44px;padding:0 8px;}
 .programme-actions button{min-height:40px;}
+
+.effort-feedback{margin:12px 16px;}
+.effort-feedback select:disabled{opacity:.5;}

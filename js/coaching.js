@@ -18,7 +18,7 @@ function getCoachingPrescription(exDef, weekNumber=getWeekNumber()){
       (!customRir && finalRir===0?' · final isolation set may reach 0 RIR / RPE 10':''),
     partialsAllowed:!deload && finalRir===0 && isolation && phase.name==='Peak' && !!exDef.finalPartials};
 }
-function computeRecommendation(exDef, lastLog, options={}){
+function computeBaseRecommendation(exDef, lastLog, options={}){
   const context=getCoachingPrescription(exDef,options?.weekNumber ?? getWeekNumber());
   const min=Math.max(1,Math.floor(Number(exDef.repMin)||1));
   const max=Math.max(min,Math.floor(Number(exDef.repMax)||min));
@@ -56,18 +56,9 @@ function computeRecommendation(exDef, lastLog, options={}){
     type='maintain';
     reason='Only '+completed.length+' of '+count+' planned working sets were completed. Complete the full prescription before increasing the load.';
   }else{
-    const sessions=DATA.sessions.slice().sort((a,b)=>a.date.localeCompare(b.date)||(a.startedAt||0)-(b.startedAt||0));
-    const index=sessions.findIndex(session=>session.exercises.includes(lastLog));
-    const source=sessions[index];
-    let prior=null;
-    for(let i=index-1;i>=0;i--){
-      if(sessions[i].phase==='Deload') continue;
-      const log=sessions[i].exercises.find(e=>e.exerciseId===exDef.id && e.name===lastLog.name);
-      const sets=log?.sets?.slice(0,count);
-      if(sets?.length===count && sets.every(set=>valid(set) && Math.abs(set.weight-weight)<0.000001)){
-        prior=sets;break;
-      }
-    }
+    const evidence=coachingEvidence(exDef,lastLog,context);
+    const source=evidence.source;
+    const prior=evidence.rows[1]?.sets || null;
     const priorTotal=prior?.reduce((sum,set)=>sum+set.reps,0) || 0;
     const below=sets=>sets.filter(set=>set.reps<min).length>=Math.ceil(count*0.67);
     const repeatedLow=source?.phase!=='Deload' && prior && below(required) && below(prior);
@@ -108,6 +99,91 @@ function computeRecommendation(exDef, lastLog, options={}){
       ' Target: '+targetTotal+' total reps across '+count+' planned sets. '+
       'RIR means reps you could still perform with good technique; RPE is the approximate effort equivalent.'};
 }
+/* Phase 6 rules are explicit app heuristics, not a measurement of recovery. */
+function coachingPlanKey(ex){
+  return JSON.stringify([ex.sets,ex.repMin,ex.repMax,ex.cat||'moderate',ex.rirTarget??null,ex.restSec,ex.tempo||'',!!ex.perLeg]);
+}
+function coachingEvidence(ex,lastLog,context){
+  const sessions=DATA.sessions.slice().sort((a,b)=>a.date.localeCompare(b.date) || a.startedAt-b.startedAt || String(a.id).localeCompare(String(b.id)));
+  const index=sessions.findIndex(s=>s.exercises.includes(lastLog)),source=sessions[index],rows=[];
+  let reset='Not enough comparable history.';
+  if(!source)return {source:null,rows,reset,planChanged:false,stale:false};
+  const definition=lastLog.definition;
+  const planChanged=!!definition && coachingPlanKey(definition)!==coachingPlanKey(ex);
+  const stale=(Date.parse(todayISO()+'T00:00:00Z')-Date.parse(source.date+'T00:00:00Z'))/86400000>28;
+  if(planChanged || stale)return {source,rows,planChanged,stale,reset:planChanged?'The exercise prescription changed.':'The last matching workout is over 28 days old.'};
+  let load=null,lastDate=source.date;
+  for(let i=index;i>=0 && rows.length<3;i--){
+    const session=sessions[i],log=session.exercises.find(e=>e.exerciseId===ex.id && e.name===lastLog.name);
+    if(!log)continue;
+    const def=log.definition||ex,effort=getCoachingPrescription(def,session.weekNumber||1),sets=log.sets?.slice(0,context.sets);
+    const gap=(Date.parse(lastDate+'T00:00:00Z')-Date.parse(session.date+'T00:00:00Z'))/86400000;
+    if(session.phase==='Deload' || effort.deload || session.readiness==='low' || coachingPlanKey(def)!==coachingPlanKey(ex) || effort.finalRir!==getCoachingPrescription(lastLog.definition||ex,source.weekNumber||1).finalRir || gap>28){reset='A deload, readiness report, prescription change or gap resets the comparison.';break;}
+    if(sets?.length!==context.sets || !sets.every(usablePreviousSet) || !sets.every(s=>Math.abs(s.weight-sets[0].weight)<.000001)){reset='Incomplete or mixed-load working sets reset the comparison.';break;}
+    if(load!==null && Math.abs(sets[0].weight-load)>.000001){reset='A load change resets the comparison.';break;}
+    load=sets[0].weight;lastDate=session.date;
+    rows.push({session,log,sets,total:sets.reduce((n,s)=>n+s.reps,0),targetRir:effort.finalRir,
+      hard:Number.isInteger(log.effortRir) && log.effortRir>=0 && log.effortRir<effort.finalRir});
+  }
+  return {source,rows,reset,planChanged,stale};
+}
+function computeRecommendation(ex,lastLog,options={}){
+  const base=computeBaseRecommendation(ex,lastLog,options),result={...base,context:{...base.context},prescription:base.prescription.map(s=>({...s}))};
+  if(base.context.deload)return {...result,insight:{pattern:'deload',count:0,totals:[],sourceDate:null,message:'Scheduled deload: trend-based progression is paused.'}};
+  const evidence=coachingEvidence(ex,lastLog,base.context),latest=evidence.rows[0],prior=evidence.rows[1];
+  const totals=evidence.rows.slice().reverse().map(row=>row.total);
+  let pattern='insufficient';
+  if(totals.length===3){
+    if(totals[2]>totals[1] && totals[1]>=totals[0])pattern='improving';
+    else if(totals[2]<totals[1] && totals[1]<totals[0] && totals[0]-totals[2]>=Math.max(2,Math.ceil(totals[0]*.12)))pattern='declining';
+    else if(totals[2]<=totals[1] && totals[1]<=totals[0])pattern='stall';
+    else pattern='variable';
+  }
+  if(latest?.sets.every(set=>set.reps>=Math.max(1,Number(ex.repMax)||1)))pattern='target-met';
+  const notes=[];
+  const min=Math.max(1,Math.floor(Number(ex.repMin)||1)),max=Math.max(min,Math.floor(Number(ex.repMax)||min));
+  const repeat=()=>{
+    result.type='maintain';
+    const previous=Array.isArray(lastLog?.sets)?lastLog.sets:[];
+    result.prescription=result.prescription.map((set,i)=>usablePreviousSet(previous[i])?{weight:previous[i].weight,reps:Math.max(min,Math.min(max,previous[i].reps))}:set);
+    const weights=result.prescription.map(s=>s.weight);
+    result.nextWeight=weights.length && weights.every(w=>w===weights[0])?weights[0]:null;
+  };
+  if(!base.context.deload){
+    if(evidence.planChanged || evidence.stale){
+      repeat();notes.push(evidence.reset+' Hold progression and establish a fresh baseline at the current rep/effort target.');
+    }else if(latest?.hard && prior?.hard && latest.total<=prior.total && ex.inc>0 && latest.sets[0].weight>0){
+      const weight=Math.max(0,Number((latest.sets[0].weight-ex.inc).toFixed(6)));
+      result.type='down';result.nextWeight=weight;result.prescription=result.prescription.map(()=>({weight,reps:min}));
+      notes.push('Final-set RIR was below its prescribed target in two comparable workouts, without rep progress. Reduce by one programmed '+ex.inc+' kg increment and rebuild at the target effort.');
+    }else if(latest?.hard && result.type!=='down'){
+      repeat();notes.push('Reported final-set RIR '+latest.log.effortRir+' was harder than its '+latest.targetRir+' RIR target. Repeat the load and reps at the intended effort before progressing.');
+    }else if(['stall','declining'].includes(pattern) && result.type!=='down'){
+      repeat();notes.push(pattern==='stall'?'No increase in total working reps across three comparable workouts. Hold and review rest, technique and effort; a stall alone does not trigger a load reduction.':'Total working reps declined across three comparable workouts. Hold and rebuild; no automatic load reduction from this trend alone.');
+    }
+    if(options.readiness==='low'){
+      if(result.type!=='down')repeat();
+      const rir=Math.max(2,result.context.rirMin);
+      result.context={...result.context,rirMin:rir,rirMax:Math.max(rir,result.context.rirMax),finalRir:Math.max(2,result.context.finalRir),partialsAllowed:false,
+        effort:'Lower readiness: leave at least '+rir+' RIR · approx. RPE '+(10-rir)+' or easier · no failure-based partials'};
+      notes.push('You marked readiness lower than usual for today. Progression is paused for this workout; this report does not carry into the next workout or diagnose recovery.');
+    }
+  }
+  const trend=totals.length===3?'Three comparable workouts: '+totals.join(' → ')+' total working reps at '+latest.sets[0].weight+' kg.':evidence.rows.length+' comparable workout'+(evidence.rows.length===1?'':'s')+'; three are needed for a trend. '+evidence.reset;
+  result.insight={pattern,count:totals.length,totals,sourceDate:evidence.source?.date||null,message:trend};
+  if(notes.length){
+    // Rebuild the action text and explanation after an override; never leave an old "increase" reason visible.
+    result.targetTotal=result.prescription.reduce((n,s)=>n+s.reps,0);
+    const load=result.nextWeight===null?(result.prescription.some(s=>s.weight!==null)?'Use listed set loads':'Choose a weight'):result.nextWeight+' KG';
+    result.text=load+' · '+result.prescription.map(s=>s.reps).join(' / ')+' REPS · '+(result.type==='down'?'REDUCE LOAD':'HOLD / REBUILD');
+    const performance=Array.isArray(lastLog?.sets)?lastLog.sets.filter(usablePreviousSet).map(s=>s.weight+'kg × '+s.reps).join(' | '):'';
+    result.detail=(performance?'LAST TIME: '+performance+'. ':'')+notes.join(' ')+' Target: '+result.targetTotal+' total reps across '+result.sets+' planned sets.';
+  }
+  result.detail+=' '+trend;
+  return result;
+}
+function rirOptions(value){return '<option value="">Not logged</option>'+[0,1,2,3,4,5].map(n=>`<option value="${n}" ${value===n?'selected':''}>${n}${n===5?'+':''} RIR</option>`).join('');}
+function readinessOptions(value){return [['','Not logged'],['usual','Usual'],['low','Lower than usual']].map(([key,label])=>`<option value="${key}" ${value===key || (!value && key==='')?'selected':''}>${label}</option>`).join('');}
 /* knee pain evaluation */
 function evalKnee(score){
   if(score===null||score===undefined) return null;

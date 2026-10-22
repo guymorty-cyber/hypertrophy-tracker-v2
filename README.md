@@ -39,6 +39,7 @@ node tests/logging.cjs
 node tests/history.cjs
 node tests/progress.cjs
 node tests/programme.cjs
+node tests/adaptive.cjs
 npm install --no-save --package-lock=false playwright@1.56.1
 npx playwright install --with-deps chromium webkit
 node tests/browser-smoke.mjs
@@ -47,6 +48,7 @@ node tests/logging-browser.mjs
 node tests/history-browser.mjs
 node tests/progress-browser.mjs
 node tests/programme-browser.mjs
+node tests/adaptive-browser.mjs
 node tests/pwa.mjs
 python -m http.server --directory dist 8080
 ```
@@ -72,3 +74,5 @@ Phase 3 adds saved-workout corrections from History/details, search by names/dat
 Phase 4 compares completed workouts and provides per-session load, reps, volume and estimated-1RM charts with date ranges. Variations and removed exercises retain separate records. Weekly training totals and bodyweight averages use calendar weeks, with missing observations handled explicitly. Analytics read saved logs without rewriting them, and reflect History corrections immediately. Estimated 1RM is a formula estimate; recorded-volume charts include external load only.
 
 Phase 5 expands More → Programme Builder to manage training/rest days and exercise order, copies and removal. The exercise editor supports category, optional RIR, tempo, per-leg reps and alternatives alongside sets/reps/rest/increments. Blank RIR follows the phase; explicit targets apply outside deload, which retains 3–4 RIR. Changes affect future workouts, and existing session snapshots/history remain intact. Copied exercises have new identities and begin without personal history. Personal exercise-plan changes require reviewing the actual programme and current physio instructions separately; this release does not replace the user's saved training plan.
+
+Phase 6 adds explainable checks for comparable-workout stalls/declines plus optional workout readiness and final-planned-set RIR. Missing feedback is not inferred. Lower readiness holds progression today; repeated comparable effort misses without rep progress can use one programmed reduction. Deload retains its own rules. History can correct these reports, and analytics/coaching recompute from saved logs. Thresholds are explicit app heuristics, not a recovery measurement or medical assessment.

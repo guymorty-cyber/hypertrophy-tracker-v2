@@ -73,7 +73,7 @@ function getPRFor(exId,displayName=null){
   return {heaviest, bestE1RM, byWeight, all:sets};
 }
 function usablePreviousSet(set){
-  return set.completed && Number.isFinite(set.weight) && set.weight>=0 &&
+  return !!set && set.completed && Number.isFinite(set.weight) && set.weight>=0 &&
     Number.isInteger(set.reps) && set.reps>0;
 }
 function lastSessionFor(exId, displayName=null){
