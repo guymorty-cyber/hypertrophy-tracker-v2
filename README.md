@@ -1,39 +1,52 @@
 # Hypertrophy Tracker
 
-A mobile workout tracker built as a self-contained HTML app. The maintained source is `index.html`; the unfinished React migration is on a separate branch.
+A mobile workout tracker with installation support and an offline app shell. The HTML entry point, CSS and feature JavaScript are maintained separately. The unfinished React migration remains on its own branch.
 
-## Daily use
+## Structure
 
-- Start or resume a workout in Train. Weight, reps, exercise notes and workout notes save on input.
-- Use last session fills empty weight/reps fields from completed sets of the same exercise. It preserves entered values and requires you to mark each set complete. Same-day workouts are ordered by start time.
-- Add set and Remove last set adjust only the current workout. Completed sets are protected, and removing entered values requires confirmation. At least one set is retained.
-- Completing a valid set starts its exercise rest timer. Timers use a finish timestamp and recover after reopening.
-- Finish only reports success after the completed workout is saved.
-- History deletes by session ID. Undo restores the most recently deleted workout until the page is reloaded.
-- More provides JSON export/import and Restore previous save. Data remains local to this browser and origin; export regularly and before changing devices.
-- Save failures stay visible. A tab with an outdated snapshot refuses to overwrite data saved by another tab. Export any unsaved edits, then reload that tab.
-- Invalid stored data is preserved and normal writes are blocked. Export recovery data before restoring, importing a valid backup or explicitly resetting.
-- Previous-save recovery is one snapshot, not a long-term backup or sync service.
+- `index.html`: app shell and ordered deferred scripts. No workout state or migration is embedded here.
+- `css/app.css`: layout and styles.
+- `js/data.js`, `storage.js`, `backup.js`: programme defaults, existing saved-data validation, persistence, import and export.
+- `js/helpers.js`, `coaching.js`: history lookups, analytics and progression recommendations.
+- `js/views/`: Home, Train, Progress, History and More screens.
+- `js/workouts.js`, `timer.js`, `programme.js`, `tracking.js`, `history.js`: feature actions.
+- `js/ui.js`, `events.js`, `app.js`: shared UI, events and startup.
+- `js/pwa.js`, `manifest.webmanifest`, `sw.js`: installation, offline setup and updates.
 
-## Checks
+The scripts deliberately share the existing app state through an explicit load order. This is an incremental refactor; it adds no runtime framework or build dependencies.
 
-Run `node tests/regression.cjs` with Node 22. The dependency-free harness executes the actual inline app script with deterministic storage, clock and DOM stand-ins; it tests state changes rather than layout.
+## Data and daily use
 
-For mobile browser smoke tests:
+The app keeps the same origin and `htData_v1` localStorage schema. An update does not reset or migrate history, programme edits, bodyweight, nutrition or an unfinished workout. The service worker only caches app files; it never stores or clears workout data.
+
+Workouts and notes save on input. Finish, deletion, Undo and set changes only report success after persistence succeeds. A stale tab refuses to overwrite a newer snapshot. Invalid stored data is preserved and normal writes are blocked until explicit recovery, import or reset. More provides JSON exports and Restore previous save; the latter is one previous snapshot, not a long-term backup.
+
+Use last session fills only empty fields from completed sets of the matching exercise. Set changes affect the current workout only. Completed sets cannot be removed, and entered values require confirmation before removal.
+
+Open online once and wait for **Ready for offline use**. You can then reopen, log and finish workouts without a connection. On iPhone use Safari → Share → Add to Home Screen; Android/desktop browsers may offer an install prompt. Keep using your existing browser or Home Screen app for its saved history. Export before moving between browser profiles, devices or installation contexts. Browser storage can be removed by the user or OS; offline caching is not a cloud backup.
+
+Updates download a complete new shell and offer **Update app**. The app saves before activating it. Other open tabs are not forcibly reloaded. An incomplete download cannot replace the working shell. Versioned scripts and CSS prevent a cached screen loading another release's code. Cache cleanup is scoped to this app and retains the previous shell.
+
+## Build and checks
+
+Requires Python 3 and Node 22. Build with a full commit SHA:
 
 ```sh
+python scripts/build_pages.py --build FULL_40_CHARACTER_COMMIT_SHA
+node tests/regression.cjs
 npm install --no-save --package-lock=false playwright@1.56.1
 npx playwright install --with-deps chromium webkit
 node tests/browser-smoke.mjs
+node tests/pwa.mjs
+python -m http.server --directory dist 8080
 ```
 
-Browser checks cover logging, notes and timer recovery, finishing, deletion, Undo and stale-tab protection in Chromium and WebKit. An actual iPhone Home Screen/background check is still useful before a release.
+Serve the packaged `dist` folder over localhost or HTTPS. The raw service-worker source contains build placeholders; preview the packaged output to test offline behaviour.
+
+The dependency-free regression suite executes the same scripts in HTML order with deterministic storage and clock stand-ins. Browser tests serve the packaged app at a GitHub Pages-style subpath in Chromium and WebKit. They cover existing history, edited programmes, unfinished workouts, offline close/reopen and logging, install metadata, an A→B update, save failures during an update, other open tabs, and rejection of an incomplete release. Real iPhone Home Screen behaviour is still worth checking on device.
 
 ## Deployment
 
-The Pages workflow runs both test suites before deploying main. It packages only `dist` using `scripts/build_pages.py`. Build packaging substitutes the commit SHA, writes `version.json`, and redirects the legacy HTML URL to the maintained app. No runtime code is patched during deployment.
+The GitHub Actions workflow tests before deploying `main`. Packaging copies only the app, icons and metadata to `dist`, pins scripts/styles and the cached shell to a commit SHA, and redirects the legacy HTML URL to the maintained app. No app logic is patched during deployment.
 
-The app checks for a newer build when it opens or becomes visible. Update app saves current state before navigating to a URL versioned with the new SHA. An old page predating this update mechanism may need a manual refresh once.
-
-The older patch scripts are retained for history; the deployment workflow no longer executes them.
-
+Set the repository's Pages Source to **GitHub Actions** so the old branch publisher does not compete with this workflow. Older patch scripts remain in the repository for history and are not executed by deployment.
