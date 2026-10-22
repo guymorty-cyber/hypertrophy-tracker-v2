@@ -7,7 +7,7 @@ The original ten-phase roadmap remains the organising plan. Work already shipped
 | 1. Coaching foundation | Last performance, specific weight/rep targets, double progression, effort guidance, exercise increments, explanations and missing-data handling | Implemented with unit and browser acceptance checks in this release |
 | 2. Workout logging | Fast entry, editable sets, rest timers, notes, finishing and recovery | Implemented with logging, recovery and edit-safety acceptance checks in this release |
 | 3. History & data | History/details, search, edit/delete/Undo and data integrity | Implemented with correction, search, deletion/Undo and data-integrity acceptance checks in this release |
-| 4. Progress & analytics | Weight/reps/volume/strength trends, PRs, bodyweight and charts | Existing basic views; full phase acceptance remains |
+| 4. Progress & analytics | Weight/reps/volume/strength trends, PRs, bodyweight and charts | Implemented with workout-level comparisons, chart/range controls, weekly training and bodyweight acceptance checks in this release |
 | 5. Programme builder | Custom exercises/days, sets, rep ranges, increments, RIR/tempo and programme structure | Existing editor; final exercise programme still needs reconciliation |
 | 6. Advanced coaching | Adapt recommendations to logged performance and recovery | Not accepted yet |
 | 7. Dashboard & personalisation | Tailored overview and training priorities | Existing dashboard; full phase acceptance remains |
@@ -51,3 +51,15 @@ The engine implements transparent programme rules. It does not claim to measure 
 - Invalid values, storage-full errors and stale tabs cannot replace historical records. Save errors retain the editor and its entered draft for retry.
 - JSON export/import retains corrected logs; import validates and refreshes summaries. Read errors allow selecting the file again.
 - `tests/history.cjs` adds thirteen logic checks. `tests/history-browser.mjs` checks actual search, editing, Cancel, invalid inputs, quota failure/retry, reload, derived PRs, detail deletion, repeated Undo, JSON download/import and stale-tab rejection in Chromium and WebKit. Existing logging, coaching and offline/update checks remain required.
+
+## Phase 4 acceptance evidence
+
+- Latest and previous compare separate completed workouts, ordered by date/start time, rather than two sets within one workout or lexicographic session IDs. Best set uses highest estimated 1RM; bodyweight-only ties use reps.
+- Exercise/variation identity stays separate across Progress, PR lists and historical badges. Removed exercises and earlier names/variations remain available without offering a target for a movement outside the current programme.
+- Per-workout charts cover top load, most reps in a set, recorded volume and estimated 1RM; all-history/90-day/30-day ranges share explicit labels. All-time records remain clearly separate from date-filtered comparisons. Charts have numeric/date labels, accessible titles and empty/single/flat handling.
+- Valid completed sets include zero external load; unfinished/invalid sets do not inflate analytics. Bodyweight-only training has reps and set records without a fabricated external-load 1RM. Volume sums recorded kg × reps; it does not add bodyweight.
+- Weekly training uses Monday–Sunday buckets, counts finished lifting workouts and completed sets, and fills unlogged weeks with zero volume. Partial boundary/current weeks are labelled. Rest and active sessions are excluded.
+- Bodyweight shows actual observations and measured-day weekly averages. Duplicate imported dates use the final entry, daylight-saving boundaries do not change calendar weeks, and rates account for elapsed weeks when observations are missing. Missing weigh-ins are not invented.
+- History corrections, deletion and Undo immediately update charts and records. Viewing/filtering analytics does not write saved state.
+- `tests/progress.cjs` adds twelve logic checks. `tests/progress-browser.mjs` checks comparisons, four metrics, ranges, variations, archived/bodyweight history, search, mobile overflow, read-only state and the correction/delete/Undo loop in Chromium and WebKit. Earlier phase and PWA checks remain required.
+- Deployment verification now uses a fresh query on each request and allows a longer propagation window after a transient CDN 404 observed in Phase 3. The deploy job reuses the successful check job's artifact name when only deployment is retried.

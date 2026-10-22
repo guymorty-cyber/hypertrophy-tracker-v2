@@ -5,9 +5,9 @@ function renderHome(wk,phase){
   const bw = DATA.bodyweight.slice().sort((a,b)=>a.date<b.date?-1:1);
   const lastBW = bw[bw.length-1];
   const weekAvg = computeWeeklyAvg();
-  const trend = weekAvg.length>=2 ? weekAvg[weekAvg.length-1].avg - weekAvg[weekAvg.length-2].avg : null;
-  const lastSession = DATA.sessions.slice().sort((a,b)=>a.date<b.date?-1:1)[0];
-  const prList = allExercisePRs().sort((a,b)=> (b.pr.bestE1RM.date||'') < (a.pr.bestE1RM.date||'') ? -1:1);
+  const trend = bodyweightWeeklyRate(weekAvg);
+  const lastSession = DATA.sessions.slice().sort((a,b)=>b.date.localeCompare(a.date) || b.startedAt-a.startedAt)[0];
+  const prList = allExercisePRs().sort((a,b)=>b.pr.bestE1RM.date.localeCompare(a.pr.bestE1RM.date) || b.pr.bestE1RM.startedAt-a.pr.bestE1RM.startedAt);
   const recentPR = prList.length ? prList[0] : null;
 
   let pendingBlock = '';
@@ -87,28 +87,8 @@ function renderNutritionMini(){
   </div>`;
 }
 function computeWeeklyAvg(){
-  const bw = DATA.bodyweight.slice().sort((a,b)=>a.date<b.date?-1:1);
-  if(!bw.length) return [];
-  const start = new Date(bw[0].date+'T00:00:00');
-  const buckets = {};
-  bw.forEach(e=>{
-    const d = new Date(e.date+'T00:00:00');
-    const wk = Math.floor((d-start)/(7*86400000));
-    if(!buckets[wk]) buckets[wk]=[];
-    buckets[wk].push(e.weight);
-  });
-  return Object.keys(buckets).sort((a,b)=>a-b).map(k=>{
-    const arr = buckets[k];
-    return {week:parseInt(k), avg: arr.reduce((a,b)=>a+b,0)/arr.length};
-  });
+  return weeklyBodyweight(DATA.bodyweight).map((row,i)=>({week:i,date:row.date,avg:row.avg,count:row.count}));
 }
 function allExercisePRs(){
-  const out = [];
-  DATA.program.forEach(day=>{
-    day.exercises.forEach(ex=>{
-      const pr = getPRFor(ex.id);
-      if(pr) out.push({exId:ex.id, name:ex.name, pr});
-    });
-  });
-  return out;
+  return progressExercises().map(ex=>({...ex,exId:ex.id,pr:getPRFor(ex.id,ex.name)})).filter(ex=>ex.pr);
 }
