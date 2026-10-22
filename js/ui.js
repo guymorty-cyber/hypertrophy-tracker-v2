@@ -18,7 +18,7 @@ document.querySelectorAll('#navbar button').forEach(b=>{
 document.getElementById('exportQuickBtn').addEventListener('click', ()=> setTab('more'));
 
 function renderTab(){
-  const wk = getWeekNumber();
+  const wk = currentTab==='train' && DATA.activeSession ? (DATA.activeSession.weekNumber || getWeekNumber()) : getWeekNumber();
   const phase = getPhase(wk);
   document.getElementById('phaseLabel').textContent = `Week ${wk} · ${phase.name}`;
   const c = document.getElementById('content');

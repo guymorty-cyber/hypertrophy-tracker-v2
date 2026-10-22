@@ -60,9 +60,9 @@ function startSession(dayIdx){
     phase: getPhase(getWeekNumber()).name,
     exercises: day.exercises.map(ex=>({
       exerciseId: ex.id,
-      name: ex.name,
+      name: ex.currentDisplay || ex.name,
       notes: '',
-      sets: Array.from({length:ex.sets}, ()=>({weight:null,reps:null,completed:false}))
+      sets: Array.from({length:getCoachingPrescription(ex).sets}, ()=>({weight:null,reps:null,completed:false}))
     })),
     kneePain: {before:null, after:null, nextMorning:null},
     notes: ''

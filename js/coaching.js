@@ -1,104 +1,111 @@
-/* recommendation engine — Phase 2 hypertrophy-specific progression */
-function computeRecommendation(exDef, lastLog){
-  const range = `${exDef.repMin}–${exDef.repMax}`;
-  const roundWeight = (w) => Math.round(w * 4) / 4;
-  const nextLoad = (w, direction=1) => roundWeight(Math.max(0, w + direction * (Number(exDef.inc) || 1)));
-
-  if(!lastLog || !lastLog.sets || !lastLog.sets.length){
-    return {
-      type:'first', nextWeight:null, targetReps:range,
-      text:`Start at a load you can perform for ${range} clean reps.`,
-      detail:'No previous performance yet. Establish a strong baseline — controlled reps and consistent technique matter more than forcing load.'
-    };
-  }
-
-  const completed = lastLog.sets.filter(s => s.completed && Number(s.weight)>0 && Number(s.reps)>0);
-  if(!completed.length){
-    return {
-      type:'first', nextWeight:null, targetReps:range,
-      text:`Choose a load for ${range} clean reps.`,
-      detail:'The previous session has no completed working sets, so this session resets the baseline.'
-    };
-  }
-
-  const reps = completed.map(s=>Number(s.reps));
-  const weights = completed.map(s=>Number(s.weight));
-  const sortedWeights = weights.slice().sort((a,b)=>a-b);
-  const workingWeight = sortedWeights[Math.floor(sortedWeights.length/2)];
-  const totalReps = reps.reduce((a,b)=>a+b,0);
-  const avgReps = totalReps / reps.length;
-  const minReps = Math.min(...reps);
-  const maxReps = Math.max(...reps);
-  const prescribedSets = Number(exDef.sets) || completed.length;
-  const completeSetCount = completed.length;
-  const enoughSets = completeSetCount >= prescribedSets;
-  const allAtTop = enoughSets && reps.slice(0,prescribedSets).every(r=>r >= exDef.repMax);
-  const allAtLeastMin = reps.every(r=>r >= exDef.repMin);
-  const belowMinCount = reps.filter(r=>r < exDef.repMin).length;
-  const materiallyBelow = belowMinCount >= Math.ceil(reps.length * 0.67);
-
-  // Compare the most recent session with the preceding comparable session when available.
-  let priorComparable = null;
-  const sessions = DATA.sessions.slice().sort((a,b)=>
-    a.date.localeCompare(b.date) || (a.startedAt||0)-(b.startedAt||0));
-  // lastLog is an exercise log, not the {session, log} lookup wrapper.
-  const lastIndex=sessions.findIndex(s=>s.exercises.includes(lastLog));
-  for(let i=lastIndex-1;i>=0;i--){
-    const exLog = sessions[i].exercises.find(e=>e.exerciseId===exDef.id && e.name===lastLog.name);
-    if(!exLog) continue;
-    const sets = (exLog.sets||[]).filter(st=>st.completed && Number(st.weight)>0 && Number(st.reps)>0);
-    if(sets.length){ priorComparable = {sets, session:sessions[i]}; break; }
-  }
-
-  const priorReps = priorComparable ? priorComparable.sets.map(s=>Number(s.reps)) : [];
-  const priorTotal = priorReps.reduce((a,b)=>a+b,0);
-  const priorWeight = priorComparable && priorComparable.sets.length ? priorComparable.sets.map(s=>Number(s.weight)).sort((a,b)=>a-b)[Math.floor(priorComparable.sets.length/2)] : null;
-  const sameLoadAsPrior = priorWeight !== null && Math.abs(priorWeight-workingWeight) < 0.001;
-  const meaningfulDrop = priorComparable && sameLoadAsPrior && enoughSets && priorReps.length >= Math.min(prescribedSets, 2) && totalReps <= priorTotal - Math.max(2, Math.ceil(priorTotal*0.12));
-
-  // Do not chase load when performance is down. One bad set is not a reason to deload.
-  if(meaningfulDrop){
-    return {
-      type:'maintain', nextWeight:workingWeight, targetReps:range,
-      text:`STAY AT ${workingWeight} KG — rebuild your reps.`,
-      detail:`Performance was down versus the previous comparable session (${priorTotal} → ${totalReps} total reps at the same load). Keep the load stable and aim to recover performance before progressing.`
-    };
-  }
-
-  // Only add load after a genuinely complete performance at the top of the range.
-  if(allAtTop){
-    const next = nextLoad(workingWeight, 1);
-    return {
-      type:'up', nextWeight:next, targetReps:range,
-      text:`INCREASE TO ${next} KG — aim for ${exDef.repMin}–${exDef.repMax}.`,
-      detail:`You hit ${exDef.repMax} reps on every prescribed set at ${workingWeight}kg. Increase by the exercise's programmed increment and rebuild from the lower end of the range.`
-    };
-  }
-
-  // If most sets are below the minimum, the load is currently too high for productive work.
-  // Otherwise hold the load and improve reps — this avoids unnecessary weight changes on normal fatigue days.
-  if(materiallyBelow && !allAtLeastMin){
-    const next = nextLoad(workingWeight, -1);
-    return {
-      type:'down', nextWeight:next, targetReps:range,
-      text:`REDUCE TO ${next} KG — rebuild ${range} reps.`,
-      detail:`${belowMinCount} of ${reps.length} completed sets fell below ${exDef.repMin} reps. Use the smaller load only when this is a repeated/clear performance issue; quality reps come first.`
-    };
-  }
-
-  const targetTotal = Math.min(exDef.repMax * prescribedSets, totalReps + 1);
-  const targetAvg = Math.min(exDef.repMax, Math.max(exDef.repMin, Math.ceil(targetTotal / prescribedSets)));
-  const missingSets = Math.max(0, prescribedSets - completeSetCount);
-  const setNote = missingSets ? ` Complete all ${prescribedSets} working sets before judging progression.` : '';
-  const qualityNote = maxReps >= exDef.repMax ? ` You have reached the top on some sets; bring the remaining sets up before adding load.` : '';
-
-  return {
-    type:'reps', nextWeight:workingWeight, targetReps:`${targetAvg}+`,
-    text:`STAY AT ${workingWeight} KG — beat ${totalReps} total reps.`,
-    detail:`Last time: ${reps.join(' / ')} reps (${totalReps} total). Aim for at least ${targetTotal} total reps next time before increasing the load.${setNote}${qualityNote}`
-  };
+/* Phase 1: deterministic double progression, phase targets and explainable prescriptions. */
+function getCoachingPrescription(exDef, weekNumber=getWeekNumber()){
+  const phase=getPhase(weekNumber);
+  const planned=Math.max(1,Math.floor(Number(exDef.sets)||1));
+  const isolation=exDef.cat==='isolation';
+  const deload=phase.name==='Deload';
+  let rirMin=1,rirMax=1;
+  if(deload){rirMin=3;rirMax=4;}
+  else if(phase.name==='Calibration'){rirMin=rirMax=isolation?1:2;}
+  else if(!isolation && ['Overload','Intensification'].includes(phase.name)){rirMax=2;}
+  const finalRir=isolation && phase.name==='Peak'?0:rirMin;
+  const rir=rirMin===rirMax?String(rirMin):rirMin+'–'+rirMax;
+  const rpe=rirMin===rirMax?String(10-rirMin):(10-rirMax)+'–'+(10-rirMin);
+  return {phase:phase.name,plannedSets:planned,sets:deload?Math.max(1,Math.ceil(planned/2)):planned,
+    deload,rirMin,rirMax,finalRir,effort:rir+' RIR · approx. RPE '+rpe+
+      (finalRir===0?' · final isolation set may reach 0 RIR / RPE 10':''),
+    partialsAllowed:!deload && isolation && phase.name==='Peak' && !!exDef.finalPartials};
 }
+function computeRecommendation(exDef, lastLog, options={}){
+  const context=getCoachingPrescription(exDef,options?.weekNumber ?? getWeekNumber());
+  const min=Math.max(1,Math.floor(Number(exDef.repMin)||1));
+  const max=Math.max(min,Math.floor(Number(exDef.repMax)||min));
+  const count=context.sets,range=min+'–'+max;
+  const valid=set=>!!set && set.completed===true && Number.isFinite(set.weight) && set.weight>=0 && Number.isInteger(set.reps) && set.reps>0;
+  const previousSets=Array.isArray(lastLog?.sets)?lastLog.sets:[];
+  const all=previousSets.filter(valid);
+  const required=previousSets.slice(0,count);
+  const completed=required.filter(valid);
+  const full=required.length===count && required.every(valid);
+  const weights=completed.map(set=>set.weight);
+  const uniform=weights.length>0 && weights.every(weight=>Math.abs(weight-weights[0])<0.000001);
+  const weight=uniform?weights[0]:null;
+  const reps=completed.map(set=>set.reps);
+  const total=reps.reduce((sum,r)=>sum+r,0);
+  const increment=Number.isFinite(Number(exDef.inc)) && Number(exDef.inc)>0?Number(exDef.inc):0;
+  const stepped=(load,direction)=>Math.max(0,Number((load+direction*increment).toFixed(6)));
+  let prescription=Array.from({length:count},(_,i)=>({weight:valid(required[i])?required[i].weight:weight,
+    reps:valid(required[i])?Math.min(max,Math.max(min,required[i].reps)):min}));
+  let type='first',reason='No completed previous working sets are available. Establish a baseline with controlled reps.';
+  let nextWeight=weight;
 
+  if(context.deload){
+    type='maintain';
+    prescription=prescription.map(set=>({...set,reps:min}));
+    reason='Deload: use '+count+' working set'+(count===1?'':'s')+' instead of '+context.plannedSets+
+      '. Do not chase rep or load records. Keep 3–4 reps in reserve; reduce the load if needed. No partials.';
+  }else if(!all.length){
+    prescription=prescription.map(set=>({weight:null,reps:min}));
+  }else if(!uniform){
+    type='maintain';nextWeight=null;
+    reason='Previous sets used different loads. Keep the listed set loads and rebuild within '+range+
+      ' reps; an average load would hide your top and back-off sets. No automatic load increase.';
+  }else if(!full){
+    type='maintain';
+    reason='Only '+completed.length+' of '+count+' planned working sets were completed. Complete the full prescription before increasing the load.';
+  }else{
+    const sessions=DATA.sessions.slice().sort((a,b)=>a.date.localeCompare(b.date)||(a.startedAt||0)-(b.startedAt||0));
+    const index=sessions.findIndex(session=>session.exercises.includes(lastLog));
+    const source=sessions[index];
+    let prior=null;
+    for(let i=index-1;i>=0;i--){
+      if(sessions[i].phase==='Deload') continue;
+      const log=sessions[i].exercises.find(e=>e.exerciseId===exDef.id && e.name===lastLog.name);
+      const sets=log?.sets?.slice(0,count);
+      if(sets?.length===count && sets.every(set=>valid(set) && Math.abs(set.weight-weight)<0.000001)){
+        prior=sets;break;
+      }
+    }
+    const priorTotal=prior?.reduce((sum,set)=>sum+set.reps,0) || 0;
+    const below=sets=>sets.filter(set=>set.reps<min).length>=Math.ceil(count*0.67);
+    const repeatedLow=source?.phase!=='Deload' && prior && below(required) && below(prior);
+    const drop=source?.phase!=='Deload' && prior && total<=priorTotal-Math.max(2,Math.ceil(priorTotal*0.12));
+    if(repeatedLow && increment>0 && weight>0){
+      type='down';nextWeight=stepped(weight,-1);
+      prescription=prescription.map(()=>({weight:nextWeight,reps:min}));
+      reason='Most prescribed sets fell below '+min+' reps in two comparable workouts. Reduce by the exercise’s '+increment+' kg increment and rebuild.';
+    }else if(drop){
+      type='maintain';
+      reason='Performance was down versus the preceding comparable workout ('+priorTotal+' → '+total+
+        ' total reps at the same load). Hold the load and rebuild; one difficult workout does not trigger a reduction.';
+    }else if(reps.every(reps=>reps>=max) && increment>0 && weight>0){
+      type='up';nextWeight=stepped(weight,1);
+      prescription=prescription.map(()=>({weight:nextWeight,reps:min}));
+      reason='Every planned set reached '+max+' reps at '+weight+' kg. Increase by this exercise’s '+increment+' kg increment and return to the lower rep target.';
+    }else if(reps.some(reps=>reps<min)){
+      type='maintain';
+      reason='Rebuild into the '+range+' rep range at the listed load. One workout below the target does not trigger an automatic load reduction.';
+    }else{
+      type='reps';
+      const target=prescription.find(set=>set.reps<max);
+      if(target) target.reps++;
+      else type='maintain';
+      reason=target?'Keep the load and aim for one more total rep across the planned sets before adding weight.':
+        (weight===0?'Bodyweight sets: maintain the rep standard. No external load is inferred from a 0 kg entry.':
+        'The rep target is met, but this exercise has no positive load increment. Keep the load until you set an equipment-appropriate increment.');
+    }
+  }
+  const lastPerformance=all.map(set=>set.weight+'kg × '+set.reps).join(' | ');
+  const targetTotal=prescription.reduce((sum,set)=>sum+set.reps,0);
+  const loadText=nextWeight===null?(all.length?'Use listed set loads':'Choose a weight'):nextWeight+' KG';
+  const targets=prescription.map(set=>set.reps).join(' / ');
+  const action={up:'INCREASE LOAD',down:'REDUCE LOAD',maintain:'HOLD / REBUILD',reps:'BUILD REPS',first:'SET BASELINE'}[type];
+  return {type,nextWeight,targetReps:range,targetTotal,sets:count,prescription,context,
+    text:loadText+' · '+(all.length?targets+' REPS':count+' SETS × '+range+' REPS')+' · '+action,
+    detail:(lastPerformance?'LAST TIME: '+lastPerformance+'. ':'')+reason+
+      ' Target: '+targetTotal+' total reps across '+count+' planned sets. '+
+      'RIR means reps you could still perform with good technique; RPE is the approximate effort equivalent.'};
+}
 /* knee pain evaluation */
 function evalKnee(score){
   if(score===null||score===undefined) return null;
@@ -107,51 +114,3 @@ function evalKnee(score){
   if(score===3) return {level:'orange',label:'Stop this movement — substitute a hip-dominant/stable alternative',cls:'pill-warn'};
   return {level:'red',label:'Stop lower-body loading — seek clinical assessment',cls:'pill-danger'};
 }
-
-/* EXPLICIT WEIGHT COACHING FIX */
-(function(){
-  const originalComputeRecommendation = window.computeRecommendation || computeRecommendation;
-  window.computeRecommendation = function(exDef, lastLog){
-    const rec = originalComputeRecommendation(exDef, lastLog);
-    if(!rec) return rec;
-
-    // The coach must always answer the two progressive-overload questions:
-    // 1) What did I do last time?
-    // 2) What exactly should I do today?
-    const completed = lastLog && lastLog.sets ? lastLog.sets.filter(s =>
-      s.completed && Number(s.weight) > 0 && Number(s.reps) > 0
-    ) : [];
-
-    if(completed.length){
-      const lastPerformance = completed.map(s => `${Number(s.weight)}kg × ${Number(s.reps)}`).join('  |  ');
-      const lastWeight = Number(completed[0].weight);
-      const lastReps = completed.map(s => Number(s.reps));
-      const lastTotal = lastReps.reduce((a,b)=>a+b,0);
-      const recommendedWeight = rec.nextWeight !== null && rec.nextWeight !== undefined
-        ? Number(rec.nextWeight)
-        : lastWeight;
-      const targetReps = rec.targetReps || `${exDef.repMin}–${exDef.repMax}`;
-
-      if(rec.nextWeight !== null && rec.nextWeight !== undefined && Number(rec.nextWeight) > 0){
-        if(rec.type === 'maintain'){
-          rec.text = `TODAY: ${recommendedWeight} KG × ${targetReps} REPS — HOLD WEIGHT`;
-        }else if(rec.type === 'up'){
-          rec.text = `TODAY: ${recommendedWeight} KG × ${targetReps} REPS — INCREASE LOAD`;
-        }else if(rec.type === 'down'){
-          rec.text = `TODAY: ${recommendedWeight} KG × ${targetReps} REPS — REDUCE LOAD`;
-        }else{
-          rec.text = `TODAY: ${recommendedWeight} KG × ${targetReps} REPS — BEAT LAST TIME`;
-        }
-      }else{
-        rec.text = `TODAY: ${lastWeight} KG × ${targetReps} REPS — BEAT LAST TIME`;
-      }
-
-      rec.detail = `LAST TIME: ${lastPerformance} (${lastTotal} total reps).  TODAY: ${recommendedWeight} KG × ${targetReps} REPS. ${rec.detail || ''}`.trim();
-    }else{
-      rec.text = `TODAY: CHOOSE A WEIGHT × ${rec.targetReps || `${exDef.repMin}–${exDef.repMax}`} REPS`;
-      rec.detail = `No completed previous working sets are available. Choose a load that allows the target reps with good technique. ${rec.detail || ''}`.trim();
-    }
-    return rec;
-  };
-
-})();

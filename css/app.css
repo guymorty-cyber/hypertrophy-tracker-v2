@@ -226,3 +226,7 @@ a.linklike{color:var(--accent);text-decoration:none;font-weight:700;font-size:13
 
 #offlineStatus{padding:6px 16px 0;font-size:11px;color:var(--teal);}
 #offlineStatus:empty{display:none;}
+
+.coach-effort{margin-top:8px;font-weight:800;color:var(--teal);}
+.coach-set-targets{display:flex;gap:5px 12px;flex-wrap:wrap;margin-top:8px;}
+.coach-set-target{font-size:12px;}

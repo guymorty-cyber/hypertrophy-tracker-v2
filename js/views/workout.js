@@ -31,7 +31,7 @@ function renderTrain(){
 function renderActiveSession(){
   const sess = DATA.activeSession;
   const day = DATA.program.find(d=>d.id===sess.dayId);
-  const wk = getWeekNumber(); const phase = getPhase(wk);
+  const wk = sess.weekNumber || getWeekNumber(); const phase = getPhase(wk);
   let kneeBefore = '';
   if(day.isLower){
     kneeBefore = `<div class="card card-tight" style="border-color:var(--teal);">
@@ -48,11 +48,11 @@ function renderActiveSession(){
   const exercisesHtml = day.exercises.map((ex,idx)=>{
     let log = sess.exercises.find(e=>e.exerciseId===ex.id);
     if(!log){
-      log = {exerciseId:ex.id, name:ex.name, notes:'', sets:Array.from({length:ex.sets}, ()=>({weight:null,reps:null,completed:false}))};
+      log = {exerciseId:ex.id, name:ex.currentDisplay || ex.name, notes:'', sets:Array.from({length:getCoachingPrescription(ex,wk).sets}, ()=>({weight:null,reps:null,completed:false}))};
       sess.exercises.push(log);
     }
     const lastLog = lastSessionFor(ex.id,log.name);
-    const rec = computeRecommendation(ex, lastLog && lastLog.log);
+    const rec = computeRecommendation(ex, lastLog && lastLog.log,{weekNumber:wk});
     return renderExerciseBlock(ex, log, lastLog, rec);
   }).join('');
 
@@ -114,7 +114,7 @@ function renderExerciseBlock(ex, log, lastLog, rec){
     return `<div class="setrow">
       <div class="setnum">${i+1}</div>
       <div>
-        <input type="number" min="0" step="0.25" aria-label="Weight in kilograms" inputmode="decimal" placeholder="${prevSet?prevSet.weight:'kg'}" value="${s.weight??''}" data-action="setField" data-exid="${ex.id}" data-setidx="${i}" data-field="weight">
+        <input type="number" min="0" step="any" aria-label="Weight in kilograms" inputmode="decimal" placeholder="${prevSet?prevSet.weight:'kg'}" value="${s.weight??''}" data-action="setField" data-exid="${ex.id}" data-setidx="${i}" data-field="weight">
         ${prevSet?`<span class="prevmini">prev ${prevSet.weight}</span>`:''}
       </div>
       <div>
@@ -128,16 +128,16 @@ function renderExerciseBlock(ex, log, lastLog, rec){
   let recoHtml = '';
   if(rec){
     const cls = rec.type==='up'?'reco-up':(rec.type==='reps'?'reco-reps':(rec.type==='down'?'reco-maintain':'reco-reps'));
-    const previous = lastLog && lastLog.log ? `Previous: ${lastLog.log.sets.filter(s=>s.completed && s.weight>0 && s.reps>0).map(s=>`${s.weight}kg × ${s.reps}`).join(' · ')}` : '';
-    recoHtml = `<div class="reco reco-coach ${cls}"><div class="coach-title">Today's advice</div><div class="coach-main">${escapeHtml(rec.text)}</div><div class="coach-detail">${escapeHtml(rec.detail||'')} ${escapeHtml(previous)}</div></div>`;
+    const targets=rec.prescription.map((set,i)=>`<div class="coach-set-target">Set ${i+1}: ${set.weight===null?'choose load':set.weight===0?'bodyweight (0 kg)':set.weight+' kg'} × ${set.reps} reps</div>`).join('');
+    recoHtml = `<div class="reco reco-coach ${cls}"><div class="coach-title">Today’s prescription · ${escapeHtml(rec.context.phase)}</div><div class="coach-main">${escapeHtml(rec.text)}</div><div class="coach-effort">${escapeHtml(rec.context.effort)}</div><div class="coach-set-targets">${targets}</div><div class="coach-detail">${escapeHtml(rec.detail)}</div></div>`;
   }
 
   return `<div class="ex-card">
     <div class="ex-head">
-      <h3 class="ex-title">${exNumber(ex.id)}. ${escapeHtml(ex.name)}</h3>
+      <h3 class="ex-title">${exNumber(ex.id)}. ${escapeHtml(log.name)}</h3>
       <div class="ex-target">${log.sets.length} sets today${log.sets.length!==ex.sets?' ('+ex.sets+' planned)':''} · ${ex.repMin}–${ex.repMax} reps${ex.perLeg?' each leg':''} · Rest ${Math.round(ex.restSec/60*10)/10>=1?Math.round(ex.restSec/60)+' min':ex.restSec+'s'}</div>
       ${ex.note?`<div class="ex-note">${escapeHtml(ex.note)}</div>`:''}
-      ${ex.finalPartials?`<div class="ex-note">Final set: after technical failure, 4–8 controlled lengthened partials.</div>`:''}
+      ${ex.finalPartials?`<div class="ex-note">${rec.context.partialsAllowed?'Optional final isolation set: follow the programmed controlled partials after technical failure.':'Follow the RIR target; no failure-based partials in this phase.'}</div>`:''}
       ${prevLine}
       <div class="ex-actions">
         <button data-action="startRest" data-sec="${ex.restSec}">Start rest timer</button>
