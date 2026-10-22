@@ -46,6 +46,7 @@ jobs:
       - name: Test mobile workouts, offline loading and updates
         timeout-minutes: 5
         run: |
+          node tests/body-browser.mjs
           node tests/browser-smoke.mjs
           node tests/coaching-browser.mjs
           node tests/logging-browser.mjs
@@ -57,7 +58,6 @@ jobs:
           node tests/mobile-browser.mjs
           node tests/reliability-browser.mjs
           node tests/clarity-browser.mjs
-          node tests/body-browser.mjs
           node tests/pwa.mjs
       - name: Upload Pages artifact
         if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'

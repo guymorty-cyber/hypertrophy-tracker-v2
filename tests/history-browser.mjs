@@ -90,9 +90,15 @@ try{
       assert.equal(await page.locator('.hist-item').count(),2);
       // Export the actual edited data, then import it through the browser file input.
       await page.locator('#navbar [data-tab="more"]').click();
-      const downloadPromise=page.waitForEvent('download');
-      await page.locator('[data-action="exportData"]').click();
-      const download=await downloadPromise;
+      let download;
+      try{
+        [download]=await Promise.all([page.waitForEvent('download'),page.locator('[data-action="exportData"]').click()]);
+      }catch(error){
+        console.log('Backup download diagnostics',JSON.stringify({engine:name,errors,state:await page.evaluate(()=>{
+          const button=document.querySelector('[data-action="exportData"]'),r=button?.getBoundingClientRect();
+          return {bound:!!button?.onclick,rect:r?{x:r.x,y:r.y,width:r.width,height:r.height}:null,active:document.activeElement?.outerHTML,overlay:document.getElementById('overlay').className,scrollY,viewport:[innerWidth,innerHeight],hit:r?document.elementFromPoint(r.x+r.width/2,r.y+r.height/2)?.outerHTML:null};
+        })}));throw error;
+      }
       const exported=JSON.parse(readFileSync(await download.path(),'utf8'));
       assert.equal(exported.sessions[0].notes,'Corrected equipment record');
       await page.locator('#importFile').setInputFiles({name:'history-backup.json',mimeType:'application/json',buffer:Buffer.from(JSON.stringify(exported))});
