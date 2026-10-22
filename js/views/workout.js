@@ -49,7 +49,7 @@ function renderActiveSession(){
   const exercisesHtml = sess.exercises.map((log,idx)=>{
     const ex=workoutExercise(log);
     const lastLog = lastSessionFor(ex.id,log.name);
-    const rec = computeRecommendation(ex, lastLog && lastLog.log,{weekNumber:wk});
+    const rec = computeRecommendation(ex, lastLog && lastLog.log,{weekNumber:wk,readiness:sess.readiness});
     return renderExerciseBlock(ex, log, lastLog, rec,idx+1);
   }).join('');
 
@@ -77,6 +77,7 @@ function renderActiveSession(){
       <button class="btn-ghost" data-action="cancelSession">Cancel</button>
     </div>
     <div class="workout-progress">${sess.exercises.reduce((n,e)=>n+e.sets.filter(s=>s.completed).length,0)} / ${sess.exercises.reduce((n,e)=>n+e.sets.length,0)} sets complete · Your session saves as you train</div>
+    <div class="card"><div class="field"><label for="workoutReadiness">Readiness for this workout (optional)</label><select id="workoutReadiness" data-action="workoutReadiness">${readinessOptions(sess.readiness)}</select><div class="progress-caption">Lower than usual pauses progression today. It is a self-report, not a health assessment.</div></div></div>
     ${kneeBefore}
     ${exercisesHtml}
     ${kneeAfter}
@@ -148,6 +149,7 @@ function renderExerciseBlock(ex, log, lastLog, rec,number=exNumber(ex.id)){
     </div>
     <div class="setlabels"><span>Set</span><span>kg</span><span>Reps</span><span>Done</span></div>
     ${setsRows}
+    <div class="effort-feedback field"><label>RIR on final planned set (optional)</label><select aria-label="Reported final-set RIR" data-action="exerciseEffort" data-exid="${ex.id}" ${log.sets.length>=rec.sets && log.sets.slice(0,rec.sets).every(usablePreviousSet)?'':'disabled'}>${rirOptions(log.effortRir)}</select><div class="progress-caption">Log the planned sets first, then report reps you could still perform with good technique. 5 means 5 or more; nothing is inferred when left blank.</div></div>
     ${recoHtml}
     <div class="notesbox">
       <textarea placeholder="Exercise notes (form cues, equipment, pain, etc.)" data-action="exNotes" data-exid="${ex.id}">${escapeHtml(log.notes||'')}</textarea>

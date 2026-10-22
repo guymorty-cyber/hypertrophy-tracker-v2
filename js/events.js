@@ -42,6 +42,10 @@ function attachTabEvents(){
       el.onclick = ()=> removeWorkoutSet(el.dataset.exid);
     }else if(action==='workoutNotes'){
       el.oninput = ()=>{ if(DATA.activeSession){ DATA.activeSession.notes=el.value; save(); } };
+    }else if(action==='workoutReadiness'){
+      el.onchange=()=>{if(!setWorkoutReadiness(el.value))renderTab();};
+    }else if(action==='exerciseEffort'){
+      el.onchange=()=>{if(!setExerciseEffort(el.dataset.exid,el.value))renderTab();};
     }else if(action==='exNotes'){
       el.oninput = ()=>{ setExerciseNotes(el.dataset.exid, el.value); };
     }else if(action==='startRest'){

@@ -96,6 +96,7 @@ function swapWorkoutExercise(exId, chosen){
   }
   const activeSession=JSON.parse(JSON.stringify(DATA.activeSession));
   activeSession.exercises.find(e=>e.exerciseId===exId).name=chosen;
+  delete activeSession.exercises.find(e=>e.exerciseId===exId).effortRir;
   const program=DATA.program.map(d=>({...d,exercises:d.exercises.map(e=>e.id===exId?{...e,currentDisplay:chosen}:e)}));
   return commitData({...DATA,activeSession,program});
 }
@@ -167,6 +168,19 @@ function toggleSetComplete(exId, setIdx, checked){
   const saved=save();
   if(checked && saved && ex) startRestTimer(ex.restSec);
   renderTab();
+}
+function setWorkoutReadiness(value){
+  const readiness=value===''?null:value;
+  if(!DATA.activeSession || ![null,'usual','low'].includes(readiness))return false;
+  if(!commitData({...DATA,activeSession:{...DATA.activeSession,readiness}}))return false;
+  renderTab();return true;
+}
+function setExerciseEffort(exId,value){
+  const effortRir=value===''?null:Number(value),log=getActiveExLog(exId);
+  if(!log || (effortRir!==null && (!Number.isInteger(effortRir) || effortRir<0 || effortRir>5)))return false;
+  const count=getCoachingPrescription(workoutExercise(log),DATA.activeSession.weekNumber).sets;
+  if(effortRir!==null && (log.sets.length<count || !log.sets.slice(0,count).every(usablePreviousSet)))return false;
+  return editWorkoutSets(exId,edited=>{edited.effortRir=effortRir;return true;});
 }
 function setExerciseNotes(exId, val){
   const log = getActiveExLog(exId);
@@ -290,6 +304,7 @@ function openSessionDetail(sid){
     return `<div style="margin-bottom:12px;">
       <div style="font-weight:700;font-size:14px;margin-bottom:2px;">${escapeHtml(e.name)}</div>
       ${rows || '<div class="empty" style="padding:6px 0;">No completed sets</div>'}
+      ${e.effortRir!=null?`<div class="ex-note">Reported final-set RIR: ${e.effortRir}${e.effortRir===5?'+':''}</div>`:''}
       ${e.notes ? `<div class="ex-note">${escapeHtml(e.notes)}</div>` : ''}
     </div>`;
   }).join('');
@@ -309,6 +324,7 @@ function openSessionDetail(sid){
     ` : ''}
     <div class="divider"></div>
     ${exHtml}
+    ${s.readiness?`<div class="ex-note">Readiness: ${s.readiness==='low'?'Lower than usual':'Usual'}</div>`:''}
     ${s.notes ? `<div class="divider"></div><div style="font-size:13px;color:var(--text-dim);"><strong>Notes:</strong> ${escapeHtml(s.notes)}</div>` : ''}
     <div class="history-edit-actions"><button class="btn btn-outline" id="detailEdit">Edit workout</button><button class="btn btn-danger-outline" id="detailDelete">Delete workout</button></div>
     <button class="btn btn-ghost" data-action="closeModal" style="margin-top:10px;">Close</button>

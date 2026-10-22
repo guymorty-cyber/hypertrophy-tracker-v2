@@ -56,10 +56,12 @@ function saveHistoryEdit(sid,draft,expectedRaw){
     !Number.isNaN(Date.parse(draft.date+'T00:00:00Z')) && new Date(draft.date+'T00:00:00Z').toISOString().slice(0,10)===draft.date;
   if(!validDate) return fail('Choose a valid workout date.');
   if(typeof draft.notes!=='string' || !Array.isArray(draft.exercises) || draft.exercises.length!==original.exercises.length) return fail('The workout could not be saved. Reopen the editor.');
+  if(draft.readiness!==undefined && ![null,'usual','low'].includes(draft.readiness))return fail('Choose a valid readiness entry.');
   const exercises=[];
   for(let ei=0;ei<original.exercises.length;ei++){
     const source=original.exercises[ei],edited=draft.exercises[ei];
     if(!edited || typeof edited.notes!=='string' || !Array.isArray(edited.sets) || edited.sets.length!==source.sets.length) return fail('The set list changed. Reopen the editor.');
+    if(edited.effortRir!==undefined && edited.effortRir!==null && (!Number.isInteger(edited.effortRir) || edited.effortRir<0 || edited.effortRir>5))return fail('RIR must be 0–5 or not logged.');
     const sets=[];
     for(let si=0;si<source.sets.length;si++){
       const set=edited.sets[si];
@@ -69,10 +71,10 @@ function saveHistoryEdit(sid,draft,expectedRaw){
          (set.completed && !usablePreviousSet(set))) return fail(`Check ${source.name}, set ${si+1}: completed sets need a non-negative weight and positive whole-number reps.`);
       sets.push({...source.sets[si],weight:set.weight,reps:set.reps,completed:set.completed});
     }
-    exercises.push({...source,notes:edited.notes,sets});
+    exercises.push({...source,notes:edited.notes,sets,...(edited.effortRir!==undefined?{effortRir:edited.effortRir}:{})});
   }
   if(exercises.length && !exercises.some(e=>e.sets.some(usablePreviousSet))) return fail('Keep at least one completed set, or delete this workout from History.');
-  const updated={...original,date:draft.date,notes:draft.notes,exercises};
+  const updated={...original,date:draft.date,notes:draft.notes,exercises,...(draft.readiness!==undefined?{readiness:draft.readiness}:{})};
   const sessions=rebuildHistory(DATA.sessions.map(s=>String(s.id)===String(sid)?updated:s));
   const pending=DATA.pendingNextMorning;
   const pendingNextMorning=pending && String(pending.sessionId)===String(sid)?{...pending,date:draft.date}:pending;
@@ -86,6 +88,7 @@ function openHistoryEditor(sid){
     <h2>Edit saved workout</h2>
     <div class="sub">${escapeHtml(original.dayName)} · Changes save only when you tap Save changes.</div>
     <div class="field"><label for="historyEditDate">Workout date</label><input id="historyEditDate" type="date" value="${escapeHtml(original.date)}"></div>
+    <div class="field"><label for="historyReadiness">Workout readiness</label><select id="historyReadiness">${readinessOptions(original.readiness)}</select></div>
     ${original.exercises.map((ex,ei)=>`<div class="history-edit-ex"><h3>${escapeHtml(ex.name)}</h3>
       <div class="setlabels"><span>Set</span><span>kg</span><span>Reps</span><span>Done</span></div>
       ${ex.sets.map((s,si)=>`<div class="setrow">
@@ -94,6 +97,7 @@ function openHistoryEditor(sid){
         <input aria-label="Repetitions" id="historyReps_${ei}_${si}" type="number" inputmode="numeric" min="1" step="1" value="${s.reps??''}">
         <div class="checkwrap"><input aria-label="Complete set" id="historyDone_${ei}_${si}" type="checkbox" ${s.completed?'checked':''}></div>
       </div>`).join('')}
+      <div class="field"><label for="historyEffort_${ei}">RIR on final planned set (optional)</label><select id="historyEffort_${ei}">${rirOptions(ex.effortRir)}</select><div class="progress-caption">Only used for coaching when the planned working sets are complete and comparable.</div></div>
       <div class="field"><label for="historyExNotes_${ei}">Exercise notes</label><textarea id="historyExNotes_${ei}">${escapeHtml(ex.notes||'')}</textarea></div>
     </div>`).join('')}
     <div class="field"><label for="historyEditNotes">Workout notes</label><textarea id="historyEditNotes">${escapeHtml(original.notes||'')}</textarea></div>
@@ -105,8 +109,8 @@ function openHistoryEditor(sid){
       const input=document.getElementById(id);
       return input.validity && input.validity.badInput?NaN:input.value===''?null:Number(input.value);
     };
-    const draft={date:document.getElementById('historyEditDate').value,notes:document.getElementById('historyEditNotes').value,
-      exercises:original.exercises.map((ex,ei)=>({notes:document.getElementById('historyExNotes_'+ei).value,
+    const draft={date:document.getElementById('historyEditDate').value,readiness:document.getElementById('historyReadiness').value||null,notes:document.getElementById('historyEditNotes').value,
+      exercises:original.exercises.map((ex,ei)=>({effortRir:document.getElementById('historyEffort_'+ei).value===''?null:Number(document.getElementById('historyEffort_'+ei).value),notes:document.getElementById('historyExNotes_'+ei).value,
         sets:ex.sets.map((s,si)=>({weight:readNumber(`historyWeight_${ei}_${si}`),reps:readNumber(`historyReps_${ei}_${si}`),completed:document.getElementById(`historyDone_${ei}_${si}`).checked}))}))};
     if(!saveHistoryEdit(sid,draft,expectedRaw)){
       if(!document.getElementById('historyEditError').textContent) document.getElementById('historyEditError').textContent='Your edits have not saved. Keep this editor open and try Save changes again. '+saveMessage;
