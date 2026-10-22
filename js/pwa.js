@@ -100,6 +100,14 @@ function setupPWA(){
     else if(offlineReady) refreshOfflineStatus();
   });
   refreshOfflineStatus();
+  // An existing offline worker stays usable even when a fresh registration
+  // request fails (for example, Wi-Fi is connected but the server is unreachable).
+  navigator.serviceWorker.ready.then(registration=>{
+    if(!pwaRegistration) pwaRegistration=registration;
+    offlineReady=true;
+    refreshOfflineStatus();
+    checkForUpdate();
+  });
   const registrationPromise=navigator.onLine===false
     ? navigator.serviceWorker.getRegistration('./')
     : navigator.serviceWorker.register('./sw.js',{scope:'./',updateViaCache:'none'});
@@ -114,7 +122,8 @@ function setupPWA(){
     refreshOfflineStatus();
     checkForUpdate();
   }).catch(()=>{
-    setOfflineStatus('Offline setup unavailable — connect and reopen to retry');
+    if(offlineReady) refreshOfflineStatus();
+    else setOfflineStatus('Offline setup unavailable — connect and reopen to retry');
     checkForUpdate();
   });
 }

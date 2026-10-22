@@ -39,7 +39,15 @@ const server=createServer((req,res)=>{
   }catch(e){res.writeHead(404);res.end();}
 });
 await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));
-const base='http://127.0.0.1:'+server.address().port+prefix;
+const port=server.address().port;
+const base='http://127.0.0.1:'+port+prefix;
+async function setOffline(context,name,offline){
+  if(name!=='WebKit') return context.setOffline(offline);
+  // Playwright issue microsoft/playwright#42775: WebKit's offline emulator
+  // rejects even literal service-worker responses. Stop the origin instead.
+  if(offline && server.listening) await new Promise(resolve=>server.close(resolve));
+  if(!offline && !server.listening) await new Promise(resolve=>server.listen(port,'127.0.0.1',resolve));
+}
 
 // Synthetic data in the existing htData_v1 format, including personal programme edits.
 const dataSource=readFileSync(join(source,'js/data.js'),'utf8');
@@ -72,6 +80,7 @@ try{
   new Function(worker);assert(!worker.includes('__PRECACHE__'));
   for(const [name,engine] of [['Chromium',chromium],['WebKit',webkit]]){
     current=0;missingAssetSeen=false;
+    if(!server.listening) await new Promise(resolve=>server.listen(port,'127.0.0.1',resolve));
     const browser=await engine.launch();
     try{
       const context=await browser.newContext({viewport:{width:390,height:844},isMobile:true,hasTouch:true});
@@ -91,7 +100,7 @@ try{
       assert.equal(await page.evaluate(()=>navigator.serviceWorker.getRegistration().then(r=>r.scope)),base);
       await page.evaluate(()=>caches.open('unrelated-app-cache'));
 
-      await context.setOffline(true);
+      await setOffline(context,name,true);
       await page.close();page=await context.newPage();watch(page);
       await page.goto(base+'?v=offline-reopen');
       assert.equal(await page.locator('#workoutNotes').inputValue(),'Existing unfinished workout');
@@ -116,7 +125,7 @@ try{
       await page.locator('#dayPicker').selectOption('0');
       await page.locator('[data-action="startPicked"]').click();
       await page.locator('#workoutNotes').fill('Preserve me through the app update');
-      current=1;await context.setOffline(false);
+      current=1;await setOffline(context,name,false);
       await page.evaluate(()=>checkForUpdate());
       await page.locator('#updateApp').waitFor({state:'visible'});
       await page.waitForFunction(()=>navigator.serviceWorker.getRegistration().then(r=>!!r.waiting));
@@ -156,7 +165,7 @@ try{
       assert.equal(await page.evaluate(()=>APP_BUILD),builds[1]);
       assert.equal(await page.locator('#updateApp').isVisible(),false);
       assert(!(await page.evaluate(()=>caches.keys())).some(key=>key.endsWith('c'.repeat(40))));
-      await context.setOffline(true);await page.close();page=await context.newPage();watch(page);
+      await setOffline(context,name,true);await page.close();page=await context.newPage();watch(page);
       await page.goto(base+'?v=after-failed-update');
       assert.equal(await page.evaluate(()=>APP_BUILD),builds[1]);
       assert.equal(await page.locator('#workoutNotes').inputValue(),'Preserve me through the app update');
@@ -170,6 +179,6 @@ try{
     }finally{await browser.close();}
   }
 }finally{
-  await new Promise(resolve=>server.close(resolve));
+  if(server.listening) await new Promise(resolve=>server.close(resolve));
   rmSync(temp,{recursive:true,force:true});
 }

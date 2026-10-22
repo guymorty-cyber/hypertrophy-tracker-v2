@@ -43,7 +43,7 @@ python -m http.server --directory dist 8080
 
 Serve the packaged `dist` folder over localhost or HTTPS. The raw service-worker source contains build placeholders; preview the packaged output to test offline behaviour.
 
-The dependency-free regression suite executes the same scripts in HTML order with deterministic storage and clock stand-ins. Browser tests serve the packaged app at a GitHub Pages-style subpath in Chromium and WebKit. They cover existing history, edited programmes, unfinished workouts, offline close/reopen and logging, install metadata, an A→B update, save failures during an update, other open tabs, and rejection of an incomplete release. Real iPhone Home Screen behaviour is still worth checking on device.
+The dependency-free regression suite executes the same scripts in HTML order with deterministic storage and clock stand-ins. Browser tests serve the packaged app at a GitHub Pages-style subpath in Chromium and WebKit. They cover existing history, edited programmes, unfinished workouts, offline close/reopen and logging, install metadata, an A→B update, save failures during an update, other open tabs, and rejection of an incomplete release. WebKit offline tests stop the origin server because Playwright’s offline-emulation switch has a known service-worker navigation bug (microsoft/playwright#42775); Chromium also runs with the browser offline. Real iPhone Home Screen behaviour is still worth checking on device.
 
 ## Deployment
 
