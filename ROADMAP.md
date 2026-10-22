@@ -25,7 +25,7 @@ The original ten-phase roadmap remains the organising plan. Work already shipped
 - A single poor workout does not trigger an automatic reduction; a repeated comparable shortfall can use the exercise's increment to reduce load.
 - Bodyweight zero and zero/fractional increments are handled explicitly.
 - Deload creates fewer working sets for a new workout without changing the saved programme. Existing sessions and historical records are not rewritten.
-- A recovered workout keeps its starting training week and chosen exercise variation.
+- A recovered workout keeps its starting training week and chosen exercise variation. Calendar-week calculation is unaffected by UK daylight-saving changes.
 - `tests/coaching.cjs` checks the decision paths. `tests/coaching-browser.mjs` proves the complete previous performance → recommendation → workout → logged sets → next recommendation loop in Chromium and WebKit.
 
 The engine implements transparent programme rules. It does not claim to measure effort, know equipment availability or replace the user's exercise technique and recovery judgement.

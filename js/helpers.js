@@ -15,8 +15,10 @@ function findExercise(exId){
 }
 function findDayByIdx(idx){ return DATA.program[idx]; }
 function getWeekNumber(){
-  const start = new Date(DATA.programStartDate+'T00:00:00');
-  const now = new Date(todayISO()+'T00:00:00');
+  // Compare local calendar dates at UTC midnight so daylight-saving changes
+  // cannot move an exact training week back by a day.
+  const start = new Date(DATA.programStartDate+'T00:00:00Z');
+  const now = new Date(todayISO()+'T00:00:00Z');
   const diffDays = Math.floor((now-start)/86400000);
   const wk = Math.floor(diffDays/7)+1;
   return Math.max(1, wk>8 ? ((wk-1)%8)+1 : wk); // cycle after week 8

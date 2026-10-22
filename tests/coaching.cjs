@@ -98,5 +98,14 @@ test('End-to-end recorded workouts drive the next recommendation',()=>{
   }
   assert.equal(h.app.data.sessions.length,3);
 });
+test('Training weeks follow calendar days across the UK daylight-saving change',()=>{
+  const previous=process.env.TZ;
+  try{
+    process.env.TZ='Europe/London';
+    const h=setup();h.state.clock=Date.parse('2026-04-05T12:00:00Z');h.app.data.programStartDate='2026-03-08';
+    assert.equal(h.app.getWeekNumber(),5);
+    assert.equal(h.app.getCoachingPrescription(h.ex).phase,'Deload');
+  }finally{if(previous===undefined) delete process.env.TZ;else process.env.TZ=previous;}
+});
 console.log(count+' Phase 1 coaching checks, '+failures+' failures');
 if(failures) process.exitCode=1;
