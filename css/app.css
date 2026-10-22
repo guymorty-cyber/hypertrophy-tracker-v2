@@ -314,3 +314,5 @@ body.entry-editing .modal{padding-bottom:calc(90px + env(safe-area-inset-bottom)
 
 body.entry-editing:has(#resttimer.show){padding-bottom:calc(var(--nav-height) + 168px + var(--keyboard-inset));}
 .home-setting,.programme-check{min-height:44px;}
+
+body.modal-open #entryToolbar{bottom:var(--keyboard-inset);}
