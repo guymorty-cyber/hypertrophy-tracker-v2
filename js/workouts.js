@@ -56,10 +56,12 @@ function startSession(dayIdx){
     startedAt: Date.now(),
     dayId: day.id,
     dayName: day.name,
+    isLower: !!day.isLower,
     weekNumber: getWeekNumber(),
     phase: getPhase(getWeekNumber()).name,
     exercises: day.exercises.map(ex=>({
       exerciseId: ex.id,
+      definition: JSON.parse(JSON.stringify(ex)),
       name: ex.currentDisplay || ex.name,
       notes: '',
       sets: Array.from({length:getCoachingPrescription(ex).sets}, ()=>({weight:null,reps:null,completed:false}))
@@ -72,7 +74,28 @@ function startSession(dayIdx){
 }
 function newSessionId(){ return 'sess_'+(typeof crypto!=='undefined' && crypto.randomUUID ? crypto.randomUUID() : Date.now()+'_'+Math.random().toString(36).slice(2)); }
 function getActiveExLog(exId){
-  return DATA.activeSession.exercises.find(e=>e.exerciseId===exId);
+  return DATA.activeSession && DATA.activeSession.exercises.find(e=>e.exerciseId===exId);
+}
+function workoutExercise(log){
+  return log.definition || findExercise(log.exerciseId) || {
+    id:log.exerciseId,name:log.name,sets:Math.max(1,log.sets.length),
+    repMin:8,repMax:12,inc:0,restSec:90,cat:'moderate'
+  };
+}
+function swapWorkoutExercise(exId, chosen){
+  const log=getActiveExLog(exId);
+  if(!log) return false;
+  const ex=workoutExercise(log);
+  if(![ex.name,...(ex.alts||[])].includes(chosen)) return false;
+  if(chosen===log.name) return true;
+  if(log.sets.some(s=>s.completed || s.weight!==null || s.reps!==null)){
+    alert('This exercise already has entered sets. Keep its name to preserve your log. Clear the values and uncheck the sets before swapping.');
+    return false;
+  }
+  const activeSession=JSON.parse(JSON.stringify(DATA.activeSession));
+  activeSession.exercises.find(e=>e.exerciseId===exId).name=chosen;
+  const program=DATA.program.map(d=>({...d,exercises:d.exercises.map(e=>e.id===exId?{...e,currentDisplay:chosen}:e)}));
+  return commitData({...DATA,activeSession,program});
 }
 function editWorkoutSets(exId, edit){
   if(!DATA.activeSession) return false;
@@ -120,7 +143,9 @@ function updateSetField(exId, setIdx, field, value){
   if(!log || !log.sets[setIdx]) return;
   const num=value===''?null:Number(value);
   if(num!==null && (!Number.isFinite(num) || num<0 || (field==='reps' && !Number.isInteger(num)))){
-    updateSaveStatus('Use a non-negative weight and whole-number reps.',true);
+    log.sets[setIdx][field]=null;
+    log.sets[setIdx].completed=false;
+    if(save()) updateSaveStatus('Use a non-negative weight and whole-number reps.',true);
     return;
   }
   log.sets[setIdx][field]=num;
@@ -129,7 +154,7 @@ function updateSetField(exId, setIdx, field, value){
 }
 function toggleSetComplete(exId, setIdx, checked){
   if(!DATA.activeSession) return;
-  const log=getActiveExLog(exId), ex=findExercise(exId);
+  const log=getActiveExLog(exId), ex=log && workoutExercise(log);
   if(!log || !log.sets[setIdx]) return;
   const set=log.sets[setIdx];
   if(checked && (!Number.isFinite(set.weight) || set.weight<0 || !Number.isInteger(set.reps) || set.reps<=0)){
@@ -153,26 +178,22 @@ function setKneePain(phase, val){
 }
 
 function openAltsModal(exId){
-  const ex = findExercise(exId);
+  const log=getActiveExLog(exId);
+  const ex=log && workoutExercise(log);
   if(!ex || !ex.alts) return;
   const options = [ex.name, ...ex.alts];
   showModal(`
     <h2>Swap exercise</h2>
     <div class="sub">Choose a substitute. Your history stays intact under the original name.</div>
     <div class="altlist">
-      ${options.map(o=>`<button data-alt="${escapeHtml(o)}" class="${o===ex.name?'current':''}">${escapeHtml(o)}</button>`).join('')}
+      ${options.map(o=>`<button data-alt="${escapeHtml(o)}" class="${o===log.name?'current':''}">${escapeHtml(o)}</button>`).join('')}
     </div>
     <button class="btn btn-ghost" data-action="closeModal">Cancel</button>
   `);
   document.querySelectorAll('[data-alt]').forEach(b=>{
     b.onclick = ()=>{
       const chosen = b.dataset.alt;
-      // update log display name for this session only + program going forward
-      const log = getActiveExLog(exId);
-      log.name = chosen;
-      const progEx = findExercise(exId);
-      progEx.currentDisplay = chosen;
-      save();
+      if(!swapWorkoutExercise(exId,chosen)) return;
       closeModal();
       renderTab();
     };
@@ -182,13 +203,15 @@ function finishWorkoutFlow(){
   if(!DATA.activeSession) return;
   const sess = JSON.parse(JSON.stringify(DATA.activeSession));
   const day = DATA.program.find(d=>d.id===sess.dayId);
-  if(!day) return;
+  const isLower=sess.isLower ?? !!(day && day.isLower);
   const completed = sess.exercises.flatMap(e=>e.sets).filter(s=>s.completed);
   if(!completed.length) return alert('Complete at least one set before finishing.');
   if(completed.some(s=>!Number.isFinite(s.weight) || s.weight<0 || !Number.isInteger(s.reps) || s.reps<=0)){
     return alert('Check completed sets: enter a weight (0 for bodyweight) and a positive whole number of reps.');
   }
-  if(day.isLower && sess.kneePain.after===null &&
+  const remaining=sess.exercises.flatMap(e=>e.sets).filter(s=>!s.completed).length;
+  if(remaining && !confirm(`${remaining} sets are unfinished. Finish with ${completed.length} completed sets? Only completed sets count in your totals.`)) return;
+  if(isLower && sess.kneePain.after===null &&
      !confirm('Knee pain after workout not logged. Finish anyway?')) return;
   const notes = document.getElementById('workoutNotes');
   sess.notes = notes ? notes.value : sess.notes;
@@ -203,7 +226,7 @@ function finishWorkoutFlow(){
     return best>0 && (!previous || best>estOneRM(previous.bestE1RM.weight,previous.bestE1RM.reps));
   }).map(e=>e.name);
   const candidate={...DATA,sessions:[...DATA.sessions,sess],activeSession:null,restEndAt:null};
-  if(day.isLower) candidate.pendingNextMorning={sessionId:sess.id,dayName:day.name,date:sess.date};
+  if(isLower) candidate.pendingNextMorning={sessionId:sess.id,dayName:sess.dayName,date:sess.date};
   if(!commitData(candidate)) return;
   stopRestTimer(false);
   showSummaryModal(sess);

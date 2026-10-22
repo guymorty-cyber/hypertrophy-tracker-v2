@@ -23,7 +23,13 @@ function attachTabEvents(){
     }else if(action==='cancelSession'){
       el.onclick = ()=>{ if(confirm('Discard this workout?')){ if(commitData({...DATA,activeSession:null,restEndAt:null})){ stopRestTimer(false); renderTab(); } } };
     }else if(action==='setField'){
-      el.oninput = ()=>{ updateSetField(el.dataset.exid, parseInt(el.dataset.setidx), el.dataset.field, el.value); };
+      el.oninput = ()=>{
+        const index=parseInt(el.dataset.setidx);
+        updateSetField(el.dataset.exid,index,el.dataset.field,el.value);
+        const log=getActiveExLog(el.dataset.exid);
+        const checkbox=el.closest('.setrow').querySelector('[data-action="toggleComplete"]');
+        if(log && checkbox) checkbox.checked=log.sets[index].completed;
+      };
     }else if(action==='toggleComplete'){
       el.onchange = ()=>{ toggleSetComplete(el.dataset.exid, parseInt(el.dataset.setidx), el.checked); };
     }else if(action==='useLastSession'){

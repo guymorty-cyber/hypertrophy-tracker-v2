@@ -19,11 +19,12 @@ function renderDayEditor(dayIdx){
   el.querySelectorAll('[data-move]').forEach(b=>{
     b.onclick = ()=>{
       const di = parseInt(b.dataset.day), i = parseInt(b.dataset.i);
-      const arr = DATA.program[di].exercises;
+      const program=JSON.parse(JSON.stringify(DATA.program));
+      const arr = program[di].exercises;
       const j = b.dataset.move==='up'? i-1 : i+1;
       if(j<0||j>=arr.length) return;
       [arr[i],arr[j]] = [arr[j],arr[i]];
-      save();
+      if(!commitData({...DATA,program})) return;
       renderDayEditor(di);
     };
   });
@@ -35,8 +36,8 @@ function renderDayEditor(dayIdx){
       const di = parseInt(b.dataset.day);
       const ex = findExercise(b.dataset.delex);
       if(!confirm(`Remove "${ex?ex.name:'this exercise'}" from this day? Past history stays saved, but it'll no longer appear in your programme or Progress list.`)) return;
-      DATA.program[di].exercises = DATA.program[di].exercises.filter(e=>e.id!==b.dataset.delex);
-      save();
+      const program=DATA.program.map((d,i)=>i===di?{...d,exercises:d.exercises.filter(e=>e.id!==b.dataset.delex)}:d);
+      if(!commitData({...DATA,program})) return;
       renderDayEditor(di);
     };
   });
@@ -50,7 +51,7 @@ function openExerciseEditModal(dayIdx, exId){
   const ex = isNew ? {name:'',sets:3,repMin:8,repMax:12,restSec:90,inc:2.5,note:''} : findExercise(exId);
   showModal(`
     <h2>${isNew?'Add exercise':'Edit exercise'}</h2>
-    <div class="sub">${isNew?'Add a custom exercise to this day.':'Changes apply to future sessions. Past history is unaffected.'}</div>
+    <div class="sub">${isNew?'Add a custom exercise to this day.':'Changes apply to future workouts. Your current workout and history keep their existing settings.'}</div>
     <div class="field"><label>Exercise name</label><input id="fEditName" value="${escapeHtml(ex.name)}" placeholder="e.g. Seated Cable Row"></div>
     <div class="field"><label>Sets</label><input id="fEditSets" type="number" inputmode="numeric" value="${ex.sets}"></div>
     <div class="row" style="gap:10px;">
@@ -70,28 +71,23 @@ function openExerciseEditModal(dayIdx, exId){
     const sets = parseInt(document.getElementById('fEditSets').value)||1;
     const repMin = parseInt(document.getElementById('fEditRepMin').value)||1;
     const repMax = parseInt(document.getElementById('fEditRepMax').value)||repMin;
-    const restSec = parseInt(document.getElementById('fEditRest').value)||60;
-    const inc = parseFloat(document.getElementById('fEditInc').value)||2.5;
+    const restSec = Number(document.getElementById('fEditRest').value);
+    const inc = Number(document.getElementById('fEditInc').value);
     const note = document.getElementById('fEditNote').value.trim();
     if(!name){ alert('Please enter an exercise name.'); return; }
-    if(sets<1 || sets>100 || repMin<1 || repMax<repMin || restSec<0 || inc<0){ alert('Check sets, rep range, rest time and weight step.'); return; }
+    if(!Number.isFinite(restSec) || !Number.isFinite(inc) || sets<1 || sets>100 || repMin<1 || repMax<repMin || restSec<0 || inc<0){ alert('Check sets, rep range, rest time and weight step.'); return; }
+    const program=JSON.parse(JSON.stringify(DATA.program));
     if(isNew){
       const newEx = {id:'custom_'+Date.now(), name, sets, repMin, repMax, restSec, inc, cat:'moderate'};
       if(note) newEx.note = note;
-      DATA.program[dayIdx].exercises.push(newEx);
+      program[dayIdx].exercises.push(newEx);
     }else{
-      ex.name=name; ex.sets=sets; ex.repMin=repMin; ex.repMax=repMax; ex.restSec=restSec; ex.inc=inc;
-      if(note) ex.note=note; else delete ex.note;
-      if(DATA.activeSession){
-        const log = DATA.activeSession.exercises.find(e=>e.exerciseId===ex.id);
-        if(log){
-          log.name = name;
-          while(log.sets.length<sets) log.sets.push({weight:null,reps:null,completed:false});
-          if(log.sets.length>sets) log.sets = log.sets.slice(0,sets);
-        }
-      }
+      const edited=program[dayIdx].exercises.find(e=>e.id===exId);
+      Object.assign(edited,{name,sets,repMin,repMax,restSec,inc});
+      if(name!==ex.name) delete edited.currentDisplay;
+      if(note) edited.note=note; else delete edited.note;
     }
-    save();
+    if(!commitData({...DATA,program})) return;
     closeModal();
     renderTab();
   };

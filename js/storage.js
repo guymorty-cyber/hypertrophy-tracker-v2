@@ -18,14 +18,18 @@ function validateData(value){
      !Array.isArray(value.sessions) || !Array.isArray(value.bodyweight) ||
      !Array.isArray(value.nutrition) || !date(value.programStartDate)) fail();
   if(!unique(value.program) || !unique(value.sessions)) fail();
+  const validateExercise = ex=>{
+    if(!object(ex) || !id(ex.id) || !/^[\w-]+$/.test(String(ex.id)) || !text(ex.name) || !Number.isInteger(ex.sets) ||
+         ex.sets<1 || ex.sets>100 || !number(ex.repMin) || !number(ex.repMax) ||
+         ex.repMin>ex.repMax || !number(ex.restSec) || !number(ex.inc)) fail();
+    if(ex.alts!==undefined && (!Array.isArray(ex.alts) || ex.alts.some(v=>!text(v)))) fail();
+  };
   for(const day of value.program){
     if(!object(day) || !id(day.id) || !text(day.name) ||
        !['training','rest'].includes(day.type) || !Array.isArray(day.exercises)) fail();
     if(!unique(day.exercises) || !/^[\w-]+$/.test(String(day.id))) fail();
     for(const ex of day.exercises){
-      if(!object(ex) || !id(ex.id) || !/^[\w-]+$/.test(String(ex.id)) || !text(ex.name) || !Number.isInteger(ex.sets) ||
-         ex.sets<1 || ex.sets>100 || !number(ex.repMin) || !number(ex.repMax) ||
-         ex.repMin>ex.repMax || !number(ex.restSec) || !number(ex.inc)) fail();
+      validateExercise(ex);
     }
   }
   const normalizeSession = s=>{
@@ -33,6 +37,10 @@ function validateData(value){
        !date(s.date) || !number(s.startedAt) || !Array.isArray(s.exercises)) fail();
     for(const e of s.exercises){
       if(!object(e) || !id(e.exerciseId) || !text(e.name) || !Array.isArray(e.sets)) fail();
+      if(e.definition!==undefined){
+        validateExercise(e.definition);
+        if(e.definition.id!==e.exerciseId) fail();
+      }
       for(const st of e.sets){
         if(!object(st) || (st.weight!==null && !number(st.weight)) ||
            (st.reps!==null && (!number(st.reps) || !Number.isInteger(st.reps))) ||
@@ -47,6 +55,14 @@ function validateData(value){
   const activeSession = value.activeSession ? normalizeSession(value.activeSession) : null;
   if(activeSession && (!value.program.some(d=>d.id===activeSession.dayId) ||
       sessions.some(s=>String(s.id)===String(activeSession.id)))) fail();
+  if(activeSession){
+    const day=value.program.find(d=>d.id===activeSession.dayId);
+    activeSession.isLower=activeSession.isLower ?? !!day.isLower;
+    activeSession.exercises=activeSession.exercises.map(e=>{
+      const definition=e.definition || day.exercises.find(ex=>ex.id===e.exerciseId);
+      return definition?{...e,definition:JSON.parse(JSON.stringify(definition))}:e;
+    });
+  }
   if(value.bodyweight.some(b=>!object(b)||!date(b.date)||!number(b.weight)||b.weight<=0) ||
      value.nutrition.some(n=>!object(n)||!date(n.date)||!number(n.calories)||!number(n.protein))) fail();
   const pending = value.pendingNextMorning;
