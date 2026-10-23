@@ -32,7 +32,9 @@ function renderTab(){
 }
 /* ---------- modal ---------- */
 let modalReturnFocus=null;
+let modalGeneration=0;
 function showModal(html){
+  modalGeneration++;
   if(document.getElementById('overlay').classList.contains?.('hide'))modalReturnFocus=document.activeElement;
   document.getElementById('modalBody').innerHTML = html;
   document.getElementById('overlay').classList.remove('hide');
@@ -42,6 +44,7 @@ function showModal(html){
   document.querySelectorAll('[data-action="closeModal"]').forEach(b=> b.onclick = closeModal);
 }
 function closeModal(){
+  modalGeneration++;
   document.getElementById('overlay').classList.add('hide');
   document.body.classList.remove('modal-open');
   if(modalReturnFocus?.isConnected)modalReturnFocus.focus({preventScroll:true});

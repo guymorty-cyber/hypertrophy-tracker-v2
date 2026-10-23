@@ -33,6 +33,7 @@ jobs:
           node tests/mobile.cjs
           node tests/reliability.cjs
           node tests/clarity.cjs
+          node tests/body.cjs
       - name: Install browser test tools
         timeout-minutes: 5
         run: |
@@ -45,6 +46,7 @@ jobs:
       - name: Test mobile workouts, offline loading and updates
         timeout-minutes: 5
         run: |
+          node tests/body-browser.mjs
           node tests/browser-smoke.mjs
           node tests/coaching-browser.mjs
           node tests/logging-browser.mjs

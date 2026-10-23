@@ -1,21 +1,22 @@
 /* ---------- MORE ---------- */
 function renderMore(){
-  const bw = DATA.bodyweight.slice().sort((a,b)=>a.date<b.date?-1:1);
-  const weekAvg = computeWeeklyAvg();
+  const bw = DATA.bodyweight.filter(b=>b.date<=todayISO()).sort((a,b)=>a.date<b.date?-1:1);
+  const weightWindows = bodyWeightWindows();
   const nutritionAdvice = computeNutritionAdvice();
   return `
     ${renderAppExperience()}
-    <h2 class="section">Bodyweight</h2>
+    <h2 class="section">Body tracking</h2>
     <div class="card">
       <div class="field" style="margin-bottom:10px;">
         <label>Log today's weight (kg)</label>
         <input type="number" step="0.1" inputmode="decimal" id="bwInput" placeholder="e.g. 82.6">
       </div>
       <button class="btn btn-primary" data-action="logBodyweight">Save weight</button>
+      ${renderBodyTools()}
       ${bw.length ? `<div class="svgwrap" style="margin-top:14px;">${renderSparkline(bw.map(b=>({date:b.date,value:b.weight})))}</div>` : ''}
       <div class="metric-grid">
         <div class="metric"><div class="label">Latest</div><div class="value">${bw.length?bw[bw.length-1].weight+' kg':'—'}</div></div>
-        <div class="metric"><div class="label">Weekly avg trend</div><div class="value" style="font-size:13px;">${bodyweightWeeklyRate(weekAvg)!==null ? bodyweightWeeklyRate(weekAvg).toFixed(2)+' kg/wk' : 'Need 2+ weeks'}</div></div>
+        <div class="metric"><div class="label">Last 7 days average</div><div class="value" style="font-size:13px;">${weightWindows.current.avg!==null ? progressNumber(weightWindows.current.avg,2)+' kg' : 'Need 3+ measured days'}</div></div>
       </div>
     </div>
 
@@ -65,7 +66,7 @@ function computeNutritionAdvice(){
   const weekAvg = computeWeeklyAvg();
   if(weekAvg.length<3) return null;
   const last3 = weekAvg.slice(-3);
-  if(last3.some((row,i)=>i>0 && utcDay(row.date)-utcDay(last3[i-1].date)!==7*86400000)) return null;
+  if(last3.some(row=>row.count<3) || last3.some((row,i)=>i>0 && utcDay(row.date)-utcDay(last3[i-1].date)!==7*86400000)) return null;
   const diffs = [];
   for(let i=1;i<last3.length;i++) diffs.push(last3[i].avg-last3[i-1].avg);
   const lastTwo = diffs.slice(-2);

@@ -3,7 +3,15 @@ function attachTabEvents(){
   document.querySelectorAll('[data-action]').forEach(el=>{
     const action = el.dataset.action;
     if(el._bound) return; // avoid dup (elements are recreated each render so fine, but guard anyway)
-    if(action==='checkAppUpdate'){
+    if(action==='bodyProgress'){
+      el.onclick=()=>openBodyProgress();
+    }else if(action==='bodyMeasurements'){
+      el.onclick=()=>openBodyMeasurements();
+    }else if(action==='editBodyMeasurement'){
+      el.onclick=()=>openBodyMeasurements(el.dataset.date);
+    }else if(action==='undoScaleImport'){
+      el.onclick=()=>undoScaleImport();
+    }else if(action==='checkAppUpdate'){
       el.onclick=()=>checkAppStatus();
     }else if(action==='personaliseDashboard'){
       el.onclick=()=>openDashboardPreferences();
@@ -88,6 +96,10 @@ function attachTabEvents(){
     }
   });
 
+  const scaleFile=document.getElementById('renphoFile');
+  if(scaleFile)scaleFile.onchange=importRenphoFile;
+  const bodyMetric=document.getElementById('bodyMetric');
+  if(bodyMetric)bodyMetric.onchange=()=>{bodyMetricKey=bodyMetric.value;renderTab();document.getElementById('scaleComposition')?.scrollIntoView?.({block:'start'});};
   const exSearch = document.getElementById('exSearch');
   if(exSearch) exSearch.oninput = ()=>{ exerciseFilterQuery = exSearch.value; renderTab(); setTimeout(()=>{ const s=document.getElementById('exSearch'); if(s){s.focus(); s.setSelectionRange(s.value.length,s.value.length);} },0); };
   for(const [id,setter] of [['progressRange',value=>progressRange=value],['progressMetric',value=>progressMetric=value]]){
