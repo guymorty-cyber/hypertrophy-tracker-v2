@@ -49,7 +49,7 @@ function renderMore(){
     <div class="card stack">
       <button class="btn btn-secondary" data-action="exportData">Export data (JSON)</button>
       <label class="btn btn-secondary" style="text-align:center;">
-        Import data (JSON)
+        Restore tracker backup (.json)
         <input type="file" id="importFile" accept="application/json" style="display:none;">
       </label>
       <button class="btn btn-outline" id="restoreBackupBtn" style="margin-bottom:10px;">Restore previous save</button>

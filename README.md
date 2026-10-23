@@ -115,3 +115,6 @@ Additional acceptance: `node tests/clarity.cjs` and `node tests/clarity-browser.
 - This is a manual local-file import, not automatic RENPHO/MyFitnessPal/Apple Health sync. No personal export or sample readings are bundled with the public app. Existing device-local storage and backup limitations remain; physical iPhone acceptance is still required.
 
 Additional acceptance: `node tests/body.cjs` and `node tests/body-browser.mjs`. Browser fixtures are synthetic and exercise preview/cancel, conflict protection/corrections, duplicate imports, save failure/retry, Undo, estimates and weight windows, measurement edit/delete, JSON roundtrip, preserved active workouts and mobile layouts.
+
+
+The RENPHO picker allows all file types so iPhone Files can select exports identified as generic documents. The CSV contents, required RENPHO headings, units and readings are still validated before preview/save. The separate JSON replacement control is labelled **Restore tracker backup (.json)** to distinguish it from additive scale import. Automated Chromium/WebKit checks verify the unrestricted input and a CSV delivered with a generic binary MIME type; the native iPhone picker still needs device verification.
