@@ -71,4 +71,11 @@ test('Out-of-order readers, cancellation, read errors and edits while reading ca
  h.app.importRenphoFile(select(csv([row()])));h.app.importRenphoFile(select(csv([row('2026.10.19','08:00:00',82)])));h.state.readers[0].reader.onerror();h.state.readers[1].reader.onload({target:{result:h.state.readers[1].file.content}});const preview=h.element('modalBody').innerHTML;assert(preview.includes('82 kg'));h.state.readers[0].reader.onload({target:{result:h.state.readers[0].file.content}});assert.equal(h.element('modalBody').innerHTML,preview);assert.equal(h.app.data.scaleReadings,undefined);
  const g=boot(script);g.state.deferReads=true;g.app.importRenphoFile(select(csv([row()])));g.app.data.marker='Changed';g.state.readers[0].reader.onload({target:{result:g.state.readers[0].file.content}});assert(g.state.alerts.at(-1).includes('data changed'));assert.equal(g.app.data.scaleReadings,undefined);
 });
+test('More renders the real import and JSON backup controls with no weight history',()=>{
+ const h=boot(script),html=h.app.renderMore();assert(html.includes('id="renphoFile"'));assert(html.includes('data-action="exportData"'));assert(html.includes('id="importFile"'));assert.equal(h.app.computeNutritionAdvice(),null);
+});
+test('Existing nutrition trend advice requires three measured days in each of three consecutive weeks',()=>{
+ const h=boot(script);h.app.data.bodyweight=[28,35,42].flatMap((offset,i)=>[0,1,2].map(day=>({date:new Date(Date.parse('2026-09-01T00:00:00Z')+(offset-1+day)*86400000).toISOString().slice(0,10),weight:80+i*.01})));
+ assert(h.app.computeNutritionAdvice().includes('under'));h.app.data.bodyweight.shift();assert.equal(h.app.computeNutritionAdvice(),null);assert.doesNotThrow(()=>h.app.renderMore());
+});
 console.log(count+' body tracking/import checks passed');

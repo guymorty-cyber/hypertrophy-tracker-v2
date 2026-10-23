@@ -63,7 +63,7 @@ function renderMore(){
   `;
 }
 function computeNutritionAdvice(){
-  const weightWindows = bodyWeightWindows();
+  const weekAvg = computeWeeklyAvg();
   if(weekAvg.length<3) return null;
   const last3 = weekAvg.slice(-3);
   if(last3.some(row=>row.count<3) || last3.some((row,i)=>i>0 && utcDay(row.date)-utcDay(last3[i-1].date)!==7*86400000)) return null;
